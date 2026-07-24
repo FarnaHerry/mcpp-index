@@ -1,7 +1,5 @@
-# Asio C++23-module consumer test project: `import asio;` (chriskohlhoff.asio,
-# Form B inline descriptor, separate-compilation mode). Complements
-# tests/examples/asio, which exercises the same upstream in header-only
-# `#include <asio.hpp>` form.
+# Asio C++23-module consumer test project: `import std; import asio;`.
+# The public package is `chriskohlhoff.asio@1.38.1` (module-only).
 [package]
 name = "asio-module-tests"
 version = "0.1.0"
