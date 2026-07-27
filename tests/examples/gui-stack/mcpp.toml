@@ -6,9 +6,6 @@
 name = "gui-stack-tests"
 version = "0.1.0"
 
-[indices]
-compat = { path = "../../.." }
-
 [target.'cfg(linux)'.dependencies.compat]
 glfw = "3.4"
 x11 = "1.8.13"

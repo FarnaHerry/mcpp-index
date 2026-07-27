@@ -1,12 +1,18 @@
 # Eigen test project: header-only linear algebra, asserted under `mcpp test`.
 # Resolves compat.eigen (source build puts the tree root on the include path)
-# from this repo's own index.
+# from this repo's own index, via the inherited workspace-root `[indices]`.
+#
+# The dependency is spelled QUALIFIED on purpose. A bare `eigen = "5.0.1"` is
+# what most real consumers write, and it does resolve (0.0.109 takes both
+# halves of the wire address from the accepted descriptor, mcpp#286) — but the
+# index redirect is keyed by the REQUEST's namespace, and a bare request asks
+# under the default namespace, not `compat`. It would therefore resolve from
+# the published remote index and quietly stop testing this checkout, which is
+# the one thing this member exists to do. Bare-name resolution against a
+# short-name index is covered upstream by mcpp's e2e 165.
 [package]
 name = "eigen-tests"
 version = "0.1.0"
-
-[indices]
-compat = { path = "../../.." }
 
 [dependencies.compat]
 eigen = "5.0.1"

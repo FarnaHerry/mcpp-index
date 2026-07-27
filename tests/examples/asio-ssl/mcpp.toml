@@ -1,0 +1,41 @@
+# chriskohlhoff.asio `ssl` FEATURE test — the end-to-end assertion for the
+# opt-in TLS surface: activating the feature compiles asio_ssl.cpp into the
+# package, pulls compat.openssl (3.5.1, built from source), and links
+# libssl.a + libcrypto.a. tests/ssl.cpp then runs a real TLS handshake over
+# loopback.
+#
+# Why this is its own member rather than a flag on tests/examples/asio-module:
+# features are resolved per consuming project, so one project cannot have asio
+# both with and without `ssl`; and the base member must keep asserting the
+# no-ssl build, which is what nearly every consumer takes.
+#
+# It needs BOTH `chriskohlhoff` and `compat`, and a project can only carry one
+# index repo — a second one pointing at the same tree makes every lookup
+# ambiguous (xlings#374). So the split is deliberate: this member declares NO
+# member-level [indices] and inherits the root's `compat`, which is the
+# namespace of the descriptor under test; asio itself is already published and
+# resolves from the remote index. The local asio descriptor, including this
+# feature's own wiring, is covered by tests/examples/asio-module.
+#
+# That inversion is the point — a feature dep resolves through whatever index
+# is configured for ITS namespace, so an unmerged compat descriptor can be
+# exercised through a published consumer that activates it.
+#
+# linux + macOS only: compat.openssl has no windows xpm entry (prebuilt MSVC
+# archives not yet published), so on windows the member carries no dependency
+# and tests/ssl.cpp compiles to a no-op main().
+[package]
+name    = "asio-ssl-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.chriskohlhoff]
+asio = { version = "1.38.1", features = ["ssl"] }
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_ASIO_SSL=1"]
+
+[target.'cfg(macos)'.dependencies.chriskohlhoff]
+asio = { version = "1.38.1", features = ["ssl"] }
+
+[target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_ASIO_SSL=1"]

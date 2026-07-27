@@ -1,7 +1,37 @@
 # Add OpenSSL package + Asio SSL support
 
-> Created: 2026-07-26 · Status: design
+> Created: 2026-07-26 · Status: design (superseded in part — see §0)
 > Repo: `mcpplibs/mcpp-index` · Branch: `feat/add-openssl-asio-tls`
+
+## 0. Corrections after landing
+
+The design below is kept as written; three of its claims did not survive
+contact with the implementation, and the descriptor now differs accordingly.
+
+1. **`name = "compat.openssl"` → `name = "openssl"`.** SPEC-001 (mcpp 0.0.106)
+   makes `name` a single atomic segment with all hierarchy in `namespace`; the
+   fully-qualified spelling is only a compatible legacy form.
+
+2. **`MCPP_FEATURE_SSL` is NOT propagated to consumer TUs.** A feature's
+   `defines` apply to the package's own translation units. The original
+   `tests/ssl.cpp` keyed its whole body off that macro and therefore compiled
+   to nothing — it passed while asserting nothing. A consumer that branches on
+   a feature declares its own macro (`tests/examples/asio-ssl` sets
+   `HAVE_ASIO_SSL` in its `[target.'cfg(…)'.build] cxxflags`), which is the
+   same shape the openblas member already used.
+
+3. **`./config` needs an explicit `--libdir=lib`.** Unset, OpenSSL derives it
+   as `lib$target{multilib}`, and `linux-x86_64` declares `multilib => "64"` —
+   so the archives install to `$prefix/lib64` while `-Llib` and the post-build
+   check look at `$prefix/lib`. linux-aarch64 and both darwin64 targets declare
+   no multilib, which is why the build validated on an arm64 Mac and was still
+   broken for every x86_64 Linux consumer.
+
+Also changed while landing: linux links `-l:libssl.a -l:libcrypto.a` (naming
+the archive rather than letting the driver resolve a name that a shared object
+would win) plus `-ldl -lpthread`; the build log moved into the install prefix
+so it survives a failed build; `RANLIB` is pinned only on macOS, which is the
+platform that needs it; and `install()` probes for `perl` up front.
 
 ## 1. Motivation
 

@@ -2,7 +2,10 @@ name: validate
 
 on:
   pull_request:
-    paths: ["pkgs/**/*.lua", "tests/**", "README.md", ".github/workflows/validate.yml"]
+    # mcpp.toml and index.toml carry the workspace member list, the inherited
+    # [indices] redirect and the client version floor — a change to any of them
+    # can break every member, so they gate the run like the descriptors do.
+    paths: ["pkgs/**/*.lua", "tests/**", "README.md", "mcpp.toml", "index.toml", ".github/workflows/validate.yml"]
   push:
     branches: [main]
   schedule:
@@ -11,6 +14,21 @@ on:
   workflow_dispatch:
 
 env:
+  # 0.0.109: a bare dependency's wire address takes BOTH halves from the
+  # descriptor the identity gate accepted (mcpp#286). This is the client-side
+  # other half of the SPEC-001 migration below: mcpp used to take the NAME from
+  # the descriptor and the NAMESPACE from the request, so a bare `gtest =
+  # "1.15.2"` addressed `mcpplibs:gtest` — a key no index has. It only ever
+  # worked because the pre-migration literal `package.name` read
+  # "compat.gtest", which the hardcoded `compat.<short>` retry then caught.
+  # Short names removed that coincidence and left every bare request against
+  # this index broken on 0.0.108, which is why min_mcpp moves to 0.0.109.
+  # Note this index cannot cover that spelling itself: the `[indices]` redirect
+  # is keyed by the REQUEST's namespace, so a bare dependency resolves from the
+  # published remote index rather than the checkout under test. Bare-name
+  # resolution against a short-name index is upstream's e2e 165; what moving
+  # the floor buys here is that consumers of THIS index get a client that can
+  # address it.
   # 0.0.106: SPEC-001 package identity (mcpp#280). `package.name` is a SINGLE
   # ATOMIC SEGMENT — all hierarchy lives in `package.namespace` — and mcpp
   # addresses a package by the LITERAL name it read, so descriptors no longer
@@ -57,7 +75,7 @@ env:
   # 0.0.94 fixed feature-gated `sources` under `mcpp test` (mcpp#218); 0.0.91
   # added standard = "c++fly" to the resolver grammar, so c++fly descriptors
   # get the lint WARN below, not a hard grammar-parse rejection.
-  MCPP_VERSION: "0.0.108"
+  MCPP_VERSION: "0.0.109"
 
 jobs:
   lint:
@@ -222,21 +240,21 @@ jobs:
             ext: tar.gz
             mcpp: bin/mcpp
             xlings: registry/bin/xlings
-            mcpp_version: "0.0.108"   # keep in sync with env.MCPP_VERSION
+            mcpp_version: "0.0.109"   # keep in sync with env.MCPP_VERSION
           - platform: macos
             os: macos-15
             suffix: macosx-arm64
             ext: tar.gz
             mcpp: bin/mcpp
             xlings: registry/bin/xlings
-            mcpp_version: "0.0.108"   # keep in sync with env.MCPP_VERSION
+            mcpp_version: "0.0.109"   # keep in sync with env.MCPP_VERSION
           - platform: windows
             os: windows-latest
             suffix: windows-x86_64
             ext: zip
             mcpp: bin/mcpp.exe
             xlings: registry/bin/xlings.exe
-            mcpp_version: "0.0.108"   # keep in sync with env.MCPP_VERSION
+            mcpp_version: "0.0.109"   # keep in sync with env.MCPP_VERSION
     env:
       MCPP_EFFECTIVE: ${{ matrix.mcpp_version }}
     steps:
@@ -375,3 +393,21 @@ jobs:
             exit $rc
           fi
 
+      # install()-driven packages (openssl, openblas) build through their own
+      # Make/Configure system, whose output xim's interface mode swallows; a
+      # failed hook surfaces only as `E_INTERNAL: [<pkg>] failed:`. Each writes
+      # a log into its install prefix, so on failure surface those — otherwise
+      # diagnosing a platform-specific build break costs a full CI round-trip
+      # per guess.
+      - name: Dump install() build logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          found=0
+          while IFS= read -r log; do
+            found=1
+            echo "::group::$log"
+            tail -80 "$log"
+            echo "::endgroup::"
+          done < <(find tests/examples "$HOME/.mcpp/registry" -name 'mcpp_*_build.log' 2>/dev/null)
+          [ "$found" = 1 ] || echo "no install() build logs found"

@@ -6,9 +6,6 @@
 name    = "openblas-tests"
 version = "0.1.0"
 
-[indices]
-compat = { path = "../../.." }
-
 [target.'cfg(windows)'.dependencies.compat]
 openblas = "0.3.33"
 [target.'cfg(windows)'.build]

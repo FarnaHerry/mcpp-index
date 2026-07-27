@@ -5,9 +5,6 @@
 name = "imgui-window-tests"
 version = "0.1.0"
 
-[indices]
-compat = { path = "../../.." }
-
 [target.'cfg(linux)'.dependencies.compat]
 imgui = "1.92.8"
 glfw = "3.4"

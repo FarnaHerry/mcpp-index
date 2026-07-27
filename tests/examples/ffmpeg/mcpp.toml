@@ -8,9 +8,6 @@
 name    = "ffmpeg-tests"
 version = "0.1.0"
 
-[indices]
-compat = { path = "../../.." }
-
 [target.'cfg(linux)'.dependencies.compat]
 ffmpeg = "8.1.2"
 

@@ -17,8 +17,8 @@ A、B、C 三类共用的骨架(`package` 头与 `xpm`)如下:
 ```lua
 package = {
     spec        = "1",
-    namespace   = "compat",          -- compat / nlohmann / mcpplibs 等,决定 import 前缀与依赖 key
-    name        = "compat.<lib>",    -- 完整包名,决定 pkgs/<首字母>/ 的落点
+    namespace   = "compat",          -- 点分层级路径;compat / nlohmann / mcpplibs 等,决定 import 前缀与依赖 key
+    name        = "<lib>",           -- 单一原子段,不重复 namespace(SPEC-001 §3.2)
     description = "…",
     licenses    = {"MIT"},           -- SPDX
     repo        = "https://…",
@@ -35,6 +35,10 @@ package = {
     mcpp = { … 见下文各形态 … },
 }
 ```
+
+身份是 `(namespace, name)` 二元组:层级一律放 `namespace`,`name` 只写一段。文件名不参与解析,推荐
+`pkgs/<首字母>/<namespace>.<name>.lua`(命中 mcpp 的快路径)。详见
+[仓库结构与 schema](repository-and-schema.md#包身份namespace-name)。
 
 ---
 
@@ -132,8 +136,9 @@ name = "<short>-example"
 version = "0.1.0"
 [toolchain]
 default = "gcc@16.1.0"
-[indices]
-compat = { path = "../../.." }            # 指回仓根,以使用本地描述符
+# `compat` 由 workspace 根的 [indices] 继承,成员无需再写;
+# 消费其他命名空间时才在此声明,例如 `[indices] fmtlib = { path = "../../.." }`
+# —— 成员级声明会**替换**根级表而非与之合并(这正是保持单个项目索引 repo 的方式)。
 [dependencies.compat]
 <short> = "1.2.3"                          # 或:<short> = { version = "1.2.3", features = ["…"] }
 [targets.<short>-example]
