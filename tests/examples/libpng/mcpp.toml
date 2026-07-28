@@ -1,0 +1,6 @@
+[package]
+name = "libpng-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+libpng = "1.6.43"

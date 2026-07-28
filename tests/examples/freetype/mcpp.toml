@@ -1,0 +1,6 @@
+[package]
+name = "freetype-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+freetype = "2.13.3"

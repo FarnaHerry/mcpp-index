@@ -1,0 +1,6 @@
+[package]
+name = "yyjson-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+yyjson = "0.12.0"
