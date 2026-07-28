@@ -1,0 +1,19 @@
+# linux + macOS only: compat.vulkan has no windows xpm entry (a statically
+# linked Vulkan loader is not supported there upstream — see the note at the top
+# of pkgs/c/compat.vulkan.lua). On windows this member carries no dependency and
+# tests/loader.cpp compiles to a no-op main().
+[package]
+name = "vulkan-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.compat]
+vulkan = "1.4.357.0"
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_VULKAN_LOADER=1"]
+
+[target.'cfg(macos)'.dependencies.compat]
+vulkan = "1.4.357.0"
+
+[target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_VULKAN_LOADER=1"]
