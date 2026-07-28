@@ -20,15 +20,32 @@
 --     entry points (ones this loader version has never heard of) get no
 --     trampoline, which no consumer in this index uses.
 --
--- WINDOWS IS DEFERRED. A statically linked loader is not something upstream
--- supports there: the only static option in its CMake is `APPLE_STATIC_LOADER`,
--- gated to macOS and carrying the warning that it "will only work on MacOS and
--- is not supported" elsewhere. Built anyway, the Windows loader links but faults
--- at the first entry point (0xC0000005 out of vkEnumerateInstanceVersion). Linux
--- is not covered by that option either, but a static loader is the ordinary
--- case there and works — Chromium ships one. Rather than carry a package that
--- crashes, this follows `compat.openssl` and declares no windows xpm entry;
--- consumers gate with `[target.'cfg(...)']`.
+-- WINDOWS TAKES A DIFFERENT SHAPE: an import library, not a built loader.
+--
+-- A statically linked loader cannot work there, and the reason is in upstream's
+-- own source rather than just its docs. `vk_loader_platform.h` says the Windows
+-- build "does initialization in the first API call made, using
+-- InitOnceExecuteOnce, EXCEPT for initialization primitives which must be done
+-- in DllMain" — and `loader_windows.c`'s DllMain is what creates `loader_lock`
+-- and `loader_preload_icd_lock`. A static library never gets a DllMain, so the
+-- first API call takes an uninitialized CRITICAL_SECTION and faults
+-- (0xC0000005 out of vkEnumerateInstanceVersion, observed in CI). macOS escapes
+-- this through `APPLE_STATIC_LOADER` + pthread_once; Linux through
+-- `__attribute__((constructor))`. Windows has neither.
+--
+-- The supported Windows arrangement is the ordinary one every Vulkan
+-- application uses: link `vulkan-1.lib` and let the system `vulkan-1.dll`,
+-- installed by any GPU driver, do the ICD loading. The windows xpm entry is
+-- therefore a small artifact carrying that import library — symbol stubs, no
+-- code — generated from Khronos' own `loader/vulkan-1.def` (shipped in this
+-- very loader tarball) with a single reproducible command:
+--
+--     llvm-dlltool -d vulkan-1.def -l lib/vulkan-1.lib -m i386:x86-64
+--
+-- Deliberately NOT an install() hook running that command at build time: the
+-- hook would have to locate llvm-dlltool inside the resolved toolchain, and the
+-- output is a fixed function of an upstream text file. Prebuilt Windows
+-- artifacts on xlings-res are the pattern `compat.openssl` already anticipates.
 --
 -- SYSCONFDIR / FALLBACK_*_DIRS are the ICD and layer manifest search paths.
 -- Upstream's CMake derives them from the install prefix; the values below are
@@ -65,7 +82,15 @@ package = {
                 sha256 = "54f2537df22313768da0317dda2abdaaab7711b4081c48c869a79db343d0ae70",
             },
         },
-        -- windows deferred, see the note at the top of this file.
+        windows = {
+            ["1.4.357.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/vulkan-import/releases/download/1.4.357.1/vulkan-import-1.4.357.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/vulkan-import/releases/download/1.4.357.1/vulkan-import-1.4.357.1.tar.gz",
+                },
+                sha256 = "37a206f866f75f54a56bdb428e4767c9926acd3f8abc8e1b9539853bb45acbf9",
+            },
+        },
     },
 
     mcpp = {
@@ -73,6 +98,8 @@ package = {
         import_std   = false,
         c_standard   = "c11",
 
+        -- `*/loader*` simply match nothing in the windows artifact, which
+        -- carries only lib/ and the .def.
         include_dirs = { "*/loader", "*/loader/generated", "mcpp_generated" },
 
         -- SYSCONFDIR / FALLBACK_*_DIRS have to reach the compiler as STRING
@@ -83,6 +110,8 @@ package = {
         -- the command line entirely — the same move `compat.opencv5` made for
         -- its space-bearing defines.
         generated_files = {
+            ["mcpp_generated/vulkan_import_anchor.c"] =
+                "int mcpp_compat_vulkan_import_anchor(void) { return 0; }\n",
             ["mcpp_generated/mcpp_vulkan_paths.h"] = [==[
 /* Manifest search paths for the Vulkan loader — see the descriptor note. */
 #pragma once
@@ -111,6 +140,22 @@ package = {
             "*/loader/wsi.c",
         },
 
+        -- SHARED, with the canonical soname — not a static lib, and the choice
+        -- is load-bearing rather than stylistic.
+        --
+        -- The Vulkan loader is designed to be the one shared object in a
+        -- process. SDL2 insists on that: `SDL_CreateWindow(SDL_WINDOW_VULKAN)`
+        -- calls `SDL_Vulkan_LoadLibrary(NULL)`, which dlopens `libvulkan.so.1`
+        -- and resolves surface creation through whatever it finds. Built
+        -- static, an application ends up with TWO loaders — its own for
+        -- `vkCreateInstance`, SDL's for `vkCreateXlibSurfaceKHR` — and
+        -- `createSurface` fails on an instance the second loader never saw.
+        -- Measured, not assumed. Shared, everyone (the application, GLFW via
+        -- glfwInitVulkanLoader, SDL via dlopen) converges on this one object.
+        --
+        -- The soname is what makes SDL's bare `dlopen("libvulkan.so.1")` land
+        -- here, so it is not optional either. Same shape the X11 family in this
+        -- index already uses.
         targets = { ["vulkan"] = { kind = "lib" } },
         deps    = { ["compat.vulkan-headers"] = "1.4.357.0" },
 
@@ -125,6 +170,12 @@ package = {
             -- loader_linux.c: it sorts physical devices by PCI bus info so
             -- device 0 is the discrete GPU rather than whichever ICD replied
             -- first.
+            -- SHARED here, and the choice is load-bearing: SDL2's
+            -- SDL_CreateWindow(SDL_WINDOW_VULKAN) dlopens libvulkan.so.1 and
+            -- resolves surface creation through whatever it finds. Static, an
+            -- application ends up with two loaders and createSurface fails on
+            -- an instance the second never saw.
+            targets = { ["vulkan"] = { kind = "shared", soname = "libvulkan.so.1" } },
             sources = { "*/loader/loader_linux.c" },
             cflags  = {
                 "-D_GNU_SOURCE",
@@ -144,6 +195,11 @@ package = {
                 ["compat.x11"]       = "1.8.13",
                 ["compat.xcb"]       = "1.17.0",
                 ["compat.xorgproto"] = "2025.1",
+                -- Without this the loader finds every ICD manifest and then
+                -- fails to dlopen a single driver: an mcpp binary runs under
+                -- mcpp's own glibc, whose search path does not include the
+                -- host's. See the note at the top of compat.vulkan-runtime.
+                ["compat.vulkan-runtime"] = "2026.07.29",
             },
             -- dlopen for the ICDs and layers; pthread for the loader's locks.
             ldflags = { "-ldl", "-lpthread", "-lm" },
@@ -184,6 +240,23 @@ package = {
             },
         },
 
-        -- No `windows` block: see the deferral note at the top.
+        windows = {
+            -- Nothing to compile: the artifact is the import library plus the
+            -- .def it came from. The anchor keeps a buildable target, the same
+            -- shape `compat.opengl` uses for a headers-only package.
+            --
+            -- The artifact is packed FLAT — lib/ at the archive root, no wrap
+            -- directory — because `-L` is not glob-expanded the way
+            -- include_dirs and sources are. With a wrap layer the relative
+            -- `-Llib` below misses and the link fails with
+            -- "LNK1181: cannot open input file 'vulkan-1.lib'".
+            sources = { "mcpp_generated/vulkan_import_anchor.c" },
+            ldflags = { "-Llib", "-lvulkan-1" },
+            runtime = {
+                -- vulkan-1.dll ships with the GPU driver, not with us.
+                dlopen_libs  = { "vulkan-1.dll" },
+                capabilities = { "vulkan.icd.driver" },
+            },
+        },
     },
 }
