@@ -16,28 +16,19 @@ package = {
     xpm = {
         linux = {
             ["0.12.0"] = {
-                url    = {
-                    GLOBAL = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/yyjson/releases/download/0.12.0/yyjson-0.12.0.tar.gz",
-                },
+                url    = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
                 sha256 = "b16246f617b2a136c78d73e5e2647c6f1de1313e46678062985bdcf1f40bb75d",
             },
         },
         macosx = {
             ["0.12.0"] = {
-                url    = {
-                    GLOBAL = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/yyjson/releases/download/0.12.0/yyjson-0.12.0.tar.gz",
-                },
+                url    = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
                 sha256 = "b16246f617b2a136c78d73e5e2647c6f1de1313e46678062985bdcf1f40bb75d",
             },
         },
         windows = {
             ["0.12.0"] = {
-                url    = {
-                    GLOBAL = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/yyjson/releases/download/0.12.0/yyjson-0.12.0.tar.gz",
-                },
+                url    = "https://github.com/ibireme/yyjson/archive/refs/tags/0.12.0.tar.gz",
                 sha256 = "b16246f617b2a136c78d73e5e2647c6f1de1313e46678062985bdcf1f40bb75d",
             },
         },

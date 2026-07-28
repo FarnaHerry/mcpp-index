@@ -20,28 +20,19 @@ package = {
     xpm = {
         linux = {
             ["1.6.43"] = {
-                url    = {
-                    GLOBAL = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/libpng/releases/download/1.6.43/libpng-1.6.43.tar.gz",
-                },
+                url    = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
                 sha256 = "fecc95b46cf05e8e3fc8a414750e0ba5aad00d89e9fdf175e94ff041caf1a03a",
             },
         },
         macosx = {
             ["1.6.43"] = {
-                url    = {
-                    GLOBAL = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/libpng/releases/download/1.6.43/libpng-1.6.43.tar.gz",
-                },
+                url    = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
                 sha256 = "fecc95b46cf05e8e3fc8a414750e0ba5aad00d89e9fdf175e94ff041caf1a03a",
             },
         },
         windows = {
             ["1.6.43"] = {
-                url    = {
-                    GLOBAL = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/libpng/releases/download/1.6.43/libpng-1.6.43.tar.gz",
-                },
+                url    = "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
                 sha256 = "fecc95b46cf05e8e3fc8a414750e0ba5aad00d89e9fdf175e94ff041caf1a03a",
             },
         },

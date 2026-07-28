@@ -19,28 +19,19 @@ package = {
     xpm = {
         linux = {
             ["2.13.3"] = {
-                url    = {
-                    GLOBAL = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/freetype/releases/download/2.13.3/freetype-2.13.3.tar.gz",
-                },
+                url    = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
                 sha256 = "bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103",
             },
         },
         macosx = {
             ["2.13.3"] = {
-                url    = {
-                    GLOBAL = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/freetype/releases/download/2.13.3/freetype-2.13.3.tar.gz",
-                },
+                url    = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
                 sha256 = "bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103",
             },
         },
         windows = {
             ["2.13.3"] = {
-                url    = {
-                    GLOBAL = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/freetype/releases/download/2.13.3/freetype-2.13.3.tar.gz",
-                },
+                url    = "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz",
                 sha256 = "bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103",
             },
         },

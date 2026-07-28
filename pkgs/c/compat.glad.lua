@@ -16,25 +16,19 @@ package = {
     xpm = {
         linux = {
             ["0.0.0-651a425"] = {
-                url    = {
-                    GLOBAL = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
-                },
+                url    = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
                 sha256 = "e144575e32f0b4bad311e5912ee4c7bed4f926d63359ae290bf34067c3dfb003",
             },
         },
         macosx = {
             ["0.0.0-651a425"] = {
-                url    = {
-                    GLOBAL = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
-                },
+                url    = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
                 sha256 = "e144575e32f0b4bad311e5912ee4c7bed4f926d63359ae290bf34067c3dfb003",
             },
         },
         windows = {
             ["0.0.0-651a425"] = {
-                url    = {
-                    GLOBAL = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
-                },
+                url    = "https://github.com/libigl/libigl-glad/archive/651a425101365aa6e8504988ef9bb363d066c5ee.tar.gz",
                 sha256 = "e144575e32f0b4bad311e5912ee4c7bed4f926d63359ae290bf34067c3dfb003",
             },
         },

@@ -18,25 +18,19 @@ package = {
     xpm = {
         linux = {
             ["0.0.0-8dd1358"] = {
-                url    = {
-                    GLOBAL = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
-                },
+                url    = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
                 sha256 = "b08c9436bde3266ec4798d7829deb1b822b8930467d233b89fcb6044a0d59189",
             },
         },
         macosx = {
             ["0.0.0-8dd1358"] = {
-                url    = {
-                    GLOBAL = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
-                },
+                url    = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
                 sha256 = "b08c9436bde3266ec4798d7829deb1b822b8930467d233b89fcb6044a0d59189",
             },
         },
         windows = {
             ["0.0.0-8dd1358"] = {
-                url    = {
-                    GLOBAL = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
-                },
+                url    = "https://github.com/zserge/tray/archive/8dd1358b92562faf7c032cf5362fa97cbc7e13e9.tar.gz",
                 sha256 = "b08c9436bde3266ec4798d7829deb1b822b8930467d233b89fcb6044a0d59189",
             },
         },
