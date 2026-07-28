@@ -40,7 +40,7 @@ package = {
     mcpp = {
         language     = "c++23",
         import_std   = false,
-        c_standard   = "c99",
+        c_standard   = "gnu11",
         include_dirs = { "*/include" },
         sources = {
             -- Base (aggregate + required extra files)

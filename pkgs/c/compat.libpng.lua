@@ -280,6 +280,6 @@ package = {
         },
         targets = { ["libpng"] = { kind = "lib" } },
         deps    = { ["compat.zlib"] = "1.3.2" },
-        cflags  = { "-DPNG_HARDWARE_OPTIMIZATIONS=0" },
+        cflags  = { "-DPNG_HARDWARE_OPTIMIZATIONS=0", "-DPNG_ARM_NEON_OPT=0" },
     },
 }
