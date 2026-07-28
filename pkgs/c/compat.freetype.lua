@@ -79,12 +79,12 @@ package = {
         cflags  = { "-DFT2_BUILD_LIBRARY", "-DFT_DISABLE_ZLIB", "-DFT_DISABLE_BZIP2", "-DFT_DISABLE_HARFBUZZ", "-DFT_DISABLE_BROTLI", "-Wno-implicit-function-declaration", "-D_DARWIN_C_SOURCE" },
         linux = {
             ldflags  = { "-lm" },
-            sources  = { "*/builds/unix/ftsystem.c" },
+            sources  = { "*/builds/unix/ftsystem.c", "*/src/base/ftdebug.c" },
             cflags   = { "-include", "fcntl.h" },
         },
         macosx = {
             ldflags  = { "-lm" },
-            sources  = { "*/builds/unix/ftsystem.c" },
+            sources  = { "*/builds/unix/ftsystem.c", "*/src/base/ftdebug.c" },
             cflags   = { "-include", "fcntl.h" },
         },
         windows = {
