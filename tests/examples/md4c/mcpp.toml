@@ -1,0 +1,6 @@
+[package]
+name = "md4c-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+md4c = "0.5.3"
