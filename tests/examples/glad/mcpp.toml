@@ -1,0 +1,6 @@
+[package]
+name = "glad-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+glad = "0.0.0-651a425"

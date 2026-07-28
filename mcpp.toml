@@ -33,8 +33,14 @@ members = [
     "tests/examples/opencv-module-dnn",
     "tests/examples/opencv-module-unifont",
     "tests/examples/spdlog",
+    "tests/examples/freetype",
+    "tests/examples/glad",
+    "tests/examples/libpng",
+    "tests/examples/md4c",
     "tests/examples/spdlog-compiled",
     "tests/examples/tinyhttps",
+    "tests/examples/tray",
+    "tests/examples/yyjson",
 ]
 
 # ── The index redirect, hoisted to the workspace root ───────────────────
