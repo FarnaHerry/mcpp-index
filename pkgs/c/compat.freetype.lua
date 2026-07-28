@@ -80,6 +80,7 @@ package = {
         linux = {
             ldflags  = { "-lm" },
             sources  = { "*/builds/unix/ftsystem.c" },
+            cflags   = { "-include", "fcntl.h" },
         },
         macosx = {
             ldflags  = { "-lm" },
