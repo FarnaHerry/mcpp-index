@@ -76,7 +76,7 @@ package = {
         },
         targets = { ["freetype"] = { kind = "lib" } },
         deps    = { ["compat.libpng"] = "1.6.43" },
-        cflags  = { "-DFT2_BUILD_LIBRARY", "-DFT_DISABLE_ZLIB", "-DFT_DISABLE_BZIP2", "-DFT_DISABLE_HARFBUZZ", "-DFT_DISABLE_BROTLI", "-Wno-implicit-function-declaration" },
+        cflags  = { "-DFT2_BUILD_LIBRARY", "-DFT_DISABLE_ZLIB", "-DFT_DISABLE_BZIP2", "-DFT_DISABLE_HARFBUZZ", "-DFT_DISABLE_BROTLI", "-Wno-implicit-function-declaration", "-D_DARWIN_C_SOURCE" },
         linux = {
             ldflags  = { "-lm" },
             sources  = { "*/builds/unix/ftsystem.c" },
