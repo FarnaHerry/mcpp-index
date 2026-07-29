@@ -3,7 +3,7 @@
 编写描述符前,应先判定库所属的形态,再选用对应模板。`mcpp = {}` 内的所有路径均为**相对 verdir 的 GLOB**:
 前导 `*` 用于吸收 tarball 的 `<repo>-<tag>/` wrap 层;`*` 匹配单段,`**` 匹配跨段(例如 `*/blas/*.cpp` 合法)。
 
-四种形态的判定要点如下:
+A–D 是四种**基础**形态,先按它们判定;E–G 是在基础形态之上叠加的处理方式,按需组合。
 
 | 形态 | 特征 | 样例 | 关键字段 |
 |---|---|---|---|
@@ -11,6 +11,11 @@
 | **B. header-only** | 纯头文件,无需编译 | `pkgs/c/compat.eigen.lua`、`compat.opengl.lua`、`compat.khrplatform.lua` | `include_dirs` 与 anchor 源 |
 | **C. C++23 module** | 暴露 `import x.y;` | `pkgs/n/nlohmann.json.lua` | `modules` 与 `generated_files` 或源 `.cppm` |
 | **D. 外部 Form-A 模块仓** | 上游自带 mcpp 描述符,独立仓库 | `pkgs/i/imgui.lua`、`pkgs/m/mcpplibs.*` | `mcpp = "<repo 路径>"`(Form A) |
+| **E. 生成 config 的全源码直编** | 上游用 configure/CMake 生成配置头,此处以 `generated_files` 落一份快照 | `pkgs/c/compat.libpng.lua`、`compat.curl.lua`、`compat.sdl2.lua`、`compat.ffmpeg.lua` | `generated_files` + `include_dirs` |
+| **F. 共享库 compat** | 必须是**唯一**的那个 `.so`(会被第三方 `dlopen`) | `pkgs/c/compat.x11.lua` 等 X11 家族、`compat.vulkan.lua`(linux) | `targets = { kind = "shared", soname = … }` |
+| **G. 宿主运行时适配** | 驱动之类无法 vendor 的东西,只做符号链接农场 + 元数据 | `pkgs/c/compat.glx-runtime.lua`、`compat.vulkan-runtime.lua` | `runtime.library_dirs` / `capabilities` |
+
+完整的样例索引见[根 README 的「参考示例」表](../README.md#参考示例lua-描述符)。
 
 A、B、C 三类共用的骨架(`package` 头与 `xpm`)如下:
 
@@ -122,7 +127,60 @@ modules 冲突),应配合 `import std;`。
 
 上游或独立仓库自带 mcpp 描述符,本仓仅充当指针:`mcpp = "<相对或远程路径>"`(Form A,而非内联的 Form B)。新增的
 独立库通常归属于另一仓库(如 `mcpplibs/imgui-m`),本仓只负责登记。写法可参照 `pkgs/i/imgui.lua` 与
-`pkgs/m/mcpplibs.xpkg.lua`。
+`pkgs/x/xpkg.lua`。
+
+---
+
+## E. 生成 config 的全源码直编(`compat.curl` / `compat.sdl2`)
+
+上游用 configure 或 CMake 生成一份配置头,而本仓要的是「列出 .c 文件」。可行的前提是这类库把**未选中的后端
+编成空 TU**(curl 的 `vtls/gtls.c` 从头到尾是 `#ifdef USE_GNUTLS`,SDL 的 `src/video/windows/*.c` 同理),于是
+源码列表可以是朴素的 glob,配置全部落在一份 `generated_files` 快照里。
+
+只在**上游有缺口的平台**生成:curl 签入了 `lib/config-win32.h`(Windows 无需生成),SDL 签入了
+`SDL_config_windows.h` / `SDL_config_macosx.h`(只有 linux 落到无用的 `SDL_config_minimal.h`)。生成时务必
+用**本索引的工具链**跑 configure —— 用宿主 `cc` 生成的 curl 配置曾断言 `ssize_t` 不存在,导致 curl 编不过自己
+的配置。
+
+## F. 共享库 compat(`compat.x11` 家族 / `compat.vulkan`)
+
+当这个库会被第三方 `dlopen` 时,它必须是进程里**唯一**的那一个,静态链接会出问题。
+
+```lua
+targets = { ["vulkan"] = { kind = "shared", soname = "libvulkan.so.1" } },
+```
+
+`soname` 不是可选项:SDL2 的 `SDL_CreateWindow(SDL_WINDOW_VULKAN)` 会 `dlopen("libvulkan.so.1")` 并用它解析
+surface 创建。若 loader 是静态的,应用最终会有两个 loader —— 自己那份建 instance,SDL 那份建 surface ——
+`createSurface` 拿到一个对方没见过的 instance 而失败。
+
+声明位置也有讲究:`kind = "shared"` 会把 `-fPIC` 传播给消费者,而 clang 对 msvc 目标直接拒绝该选项。因此
+`compat.vulkan` 把它写在 **linux 块内**,Windows 走另一套(链接预生成的 import library)。平台块里的 `targets`
+会覆盖顶层声明,`compat.ffmpeg` 亦如此。
+
+## G. 宿主运行时适配(`compat.glx-runtime` / `compat.vulkan-runtime`)
+
+GPU 驱动无法打包 —— ICD 必须匹配机器上的内核驱动。本仓的既定立场是把它建模为**宿主能力**,而不是假装厂商
+驱动是可再分发的普通包(见 `.agents/docs/2026-06-03-gl-runtime-packages-plan.md`)。这类包不 vendor 任何东西,
+只做符号链接农场加元数据:
+
+```lua
+runtime = {
+    library_dirs = { "mcpp_generated/<name>/lib" },
+    capabilities = { "vulkan.icd.driver" },
+},
+```
+
+之所以需要它:mcpp 的产物跑在**自带的 glibc** 下(`interp` 指向 `xim-x-glibc`,rpath 只覆盖 mcpp 自己的树),
+因此裸 soname 的 `dlopen` 根本不搜索宿主库路径 —— loader 能找到全部 ICD manifest,却一个驱动都打不开。
+
+两个反复踩到的细节:
+
+- **农场里只放带版本号的 soname**(`lib*.so.*`)。`runtime.library_dirs` 同时进**链接行**,一个裸 `libxcb.so`
+  会遮蔽本仓自己的 `compat.xcb`,链接报 `undefined reference to XauDisposeAuth`(mcpp#304)。带版本号的名字对
+  链接器不可见,而恰好是 `dlopen` 要的。
+- **闭包必须完整**。农场里有 `libxcb.so.1` 却没有它依赖的 `libXau.so.6`,会遮蔽掉本来能解析的宿主副本,可执行
+  文件直接起不来。
 
 ---
 

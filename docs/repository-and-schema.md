@@ -31,7 +31,7 @@ tools/compat-ffmpeg/ 等      compat 大包的描述符再生成流水线
   `/home/speak/workspace/github/mcpp-community/mcpp`)。`mcpp --version` 应与 CI 对齐;feature 与 glob 行为以
   `src/manifest.cppm`、`src/modgraph/scanner.cppm`、`src/build/prepare.cppm` 为准。
 - xpkg 扩展 schema(权威):
-  https://github.com/mcpp-community/mcpp/blob/main/docs/04-schema-xpkg-extension.md(对应本仓 `.xpkgindex.json` 的
+  https://github.com/mcpp-community/mcpp/tree/main/docs/spec(对应本仓 `.xpkgindex.json` 的
   “mcpp ext” 链接)。V1 xpkg spec 见 `d2learn/xim-pkgindex` 的 `docs/V1/xpackage-spec.md`(url-template 约在第 172 行)。
 - CN 镜像组织:gitcode `mcpp-res`。
 
@@ -41,7 +41,7 @@ tools/compat-ffmpeg/ 等      compat 大包的描述符再生成流水线
 
 ### 包身份:`(namespace, name)`
 
-身份是二元组 —— **`namespace` 是点分层级路径,`name` 是单一原子段**。层级一律放 `namespace`(mcpp SPEC-001 §3.2,`docs/spec/package-identity.md`):
+身份是二元组 —— **`namespace` 是点分层级路径,`name` 是单一原子段**。层级一律放 `namespace`(mcpp SPEC-001 §3.2,见 mcpp 仓的 [`docs/spec/package-identity.md`](https://github.com/mcpp-community/mcpp/blob/main/docs/spec/package-identity.md)):
 
 ```lua
 namespace = "compat",        name = "zlib"      -- ✅

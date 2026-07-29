@@ -10,4 +10,4 @@
 | [repository-and-schema.md](repository-and-schema.md) | 仓库布局、描述符 schema 速查、`validate.yml` CI 行为、本地 lint 复现、案例索引 |
 
 > 包的字段规范(`mcpp = { … }` 扩展)以上游为准,见
-> [mcpp docs/04-schema-xpkg-extension.md](https://github.com/mcpp-community/mcpp/blob/main/docs/04-schema-xpkg-extension.md)。
+> `mcpp xpkg parse`(CI 使用的同一个解析器),语义与约束见 mcpp 仓的 [`docs/spec/`](https://github.com/mcpp-community/mcpp/tree/main/docs/spec)。

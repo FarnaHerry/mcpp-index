@@ -39,7 +39,7 @@ mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上�
 | 全源码直编 + 生成 config(仅缺口平台) | [`compat.curl`](pkgs/c/compat.curl.lua)(win32 用上游签入 config,unix 生成) · [`compat.sdl2`](pkgs/c/compat.sdl2.lua)(win/mac 用上游签入 config,linux 生成 + 手工开 X11) |
 | 补索引空缺的头文件包 | [`compat.glx-headers`](pkgs/c/compat.glx-headers.lua)(libglvnd 的 `GL/glx.h`,Khronos registry 不含,SDL 的 X11 后端必需) |
 | C++ 应用框架 compat(依赖复用索引内既有包) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua)(上游 `3rd/` 自带 8 个 vendored 依赖,此处一个不编,全部改指索引内同版本 `compat.*`) |
-| 互斥后端(同包多后端二选一) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua) 的 `opengl`/`vulkan` 与 `glfw`/`sdl2`。**`default` feature 在 mcpp 上不可用**(带 `defines/sources/deps` 完全不生效;带 `implies` 反而恒生效),可行解是用 `-DMCPP_FEATURE_<NAME>` 在强制包含头里做前置判定。另注意 `cflags` 只作用于 C TU,C++ 需 `cxxflags` |
+| 互斥后端(同包多后端二选一) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua):`vulkan` / `sdl2` 各自**替换**默认的 OpenGL / GLFW,默认后端由"不点名任何 feature"表达,并不存在 `opengl`/`glfw` feature。`default` feature 表达不了互斥 —— 它自带的 `defines`/`sources`/`deps` 完全不生效,而 `implies` 又恒生效、无法被点名的 feature 覆盖(后者反而正好是本表『恒开的 interface define』一行的解法)。可行解是读 mcpp 本就会传的 `-DMCPP_FEATURE_<NAME>`,在强制包含头里做前置判定。另注意 `cflags` 只作用于 C TU,C++ 需 `cxxflags` —— 只写进 `cflags` 的后端 define 到不了任何 `.cpp` |
 | 宿主运行时适配(不 vendor 驱动) | [`compat.glx-runtime`](pkgs/c/compat.glx-runtime.lua) · [`compat.vulkan-runtime`](pkgs/c/compat.vulkan-runtime.lua)(mcpp 产物跑在自带 glibc 下,裸 soname 的 `dlopen` 够不到宿主驱动;用符号链接农场 + `runtime.library_dirs` 打通。注意 farm 只放带版本号的 soname —— `library_dirs` 同时进链接行) |
 | 恒开的 interface define | [`compat.curl`](pkgs/c/compat.curl.lua) 的 `CURL_STATICLIB`:`cflags` 恒开但包私有,feature `defines` 可达消费端但需点名 —— `default = { implies = … }` 无条件生效,恰好两者兼得 |
 | 单包多 major(形态随版本切换) | [`compat.catch2`](pkgs/c/compat.catch2.lua)(3.x 编 `src/catch2/` 出静态库;2.x 走 `single_include/` header-only) |
@@ -61,10 +61,11 @@ mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上�
 
 细节文档位于 [`docs/`](docs/),供人工与 agent 共同使用:
 
-- [库形态与描述符模板](docs/package-types.md):C 源码、header-only、模块、外部 Form-A 四类模板与样例。
+- [库形态与描述符模板](docs/package-types.md):各类形态的描述符模板与样例,以及最小工程的写法。
 - [CN 镜像闭环](docs/cn-mirror.md):`gtc` 与 gitcode 操作,以及无 `mcpp-res` 权限时的回退方案。
 - [仓库结构与 schema 与 CI](docs/repository-and-schema.md):字段速查、选跑机制与本地 lint。
-- 字段规范见 [mcpp 扩展字段文档](https://github.com/mcpp-community/mcpp/blob/main/docs/04-schema-xpkg-extension.md)。
+- 字段的**权威判定**是 `mcpp xpkg parse`(CI 用的就是它:未知的 mcpp 段字段直接失败,而不是被静默忽略);
+  语义与约束见 mcpp 仓的 [`docs/spec/`](https://github.com/mcpp-community/mcpp/tree/main/docs/spec)。
 
 > 提交 PR 后,`validate` 自动执行 lint 并按改动库选跑对应 workspace 成员(整个测试面是一个 mcpp
 > workspace,公开模块包 `imgui`/`ffmpeg`/`opencv`/`tinyhttps` 也是普通成员——`compat` 的重定向声明在
