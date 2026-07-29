@@ -5,7 +5,7 @@ on:
     # mcpp.toml and index.toml carry the workspace member list, the inherited
     # [indices] redirect and the client version floor — a change to any of them
     # can break every member, so they gate the run like the descriptors do.
-    paths: ["pkgs/**/*.lua", "tests/**", "README.md", "mcpp.toml", "index.toml", ".github/workflows/validate.yml"]
+    paths: ["pkgs/**/*.lua", "tests/**", "README.md", "README.zh-CN.md", "mcpp.toml", "index.toml", ".github/workflows/validate.yml"]
   push:
     branches: [main]
   schedule:
@@ -263,13 +263,37 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # The cache key is computed ONCE, here, instead of inline in the cache
+      # step. `hashFiles()` globs the WORKING TREE, and actions/cache
+      # re-evaluates its `key` in the post (save) step — i.e. AFTER the build,
+      # when `tests/**` no longer matches 80-odd tracked sources but tens of
+      # thousands of build-output files under tests/examples/*/target and
+      # .mcpp (multi-GB; .gitignore does not apply to hashFiles). Hashing that
+      # tree blew past the runner's 120s template-evaluation cap on windows
+      # and failed an otherwise all-green job:
+      #   "hashFiles('pkgs/**/*.lua, tests/**, .github/workflows/validate.yml')
+      #    couldn't finish within 120 seconds"
+      # `git ls-files -s` reads the INDEX, so it sees exactly the tracked
+      # inputs, never build output, and reports blob SHAs git already has —
+      # no file content is read at all. Freezing the result in the job env
+      # also guarantees the save step keys on the same string the restore
+      # step used, no matter what the build left behind.
+      - name: Compute registry cache key
+        shell: bash
+        run: |
+          # git hash-object rather than sha256sum/cut: git is already a hard
+          # requirement here (checkout ran), coreutils on the windows leg is
+          # only a Git-Bash convenience.
+          h=$(git ls-files -s -- 'pkgs/**/*.lua' 'tests/**' '.github/workflows/validate.yml' \
+              | git hash-object --stdin)
+          echo "REGISTRY_CACHE_KEY=mcpp-registry-${{ runner.os }}-${{ env.MCPP_EFFECTIVE }}-$h" >> "$GITHUB_ENV"
       - name: Restore mcpp registry cache
         uses: actions/cache@v4
         with:
           # Holds toolchains AND the built compat packages (data/xpkgs), so a
           # repeat `mcpp test` rebuilds little.
           path: ~/.mcpp/registry
-          key: mcpp-registry-${{ runner.os }}-${{ env.MCPP_EFFECTIVE }}-${{ hashFiles('pkgs/**/*.lua', 'tests/**', '.github/workflows/validate.yml') }}
+          key: ${{ env.REGISTRY_CACHE_KEY }}
           restore-keys: |
             mcpp-registry-${{ runner.os }}-${{ env.MCPP_EFFECTIVE }}-
       - name: Download mcpp

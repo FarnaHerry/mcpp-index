@@ -1,91 +1,103 @@
 # mcpp-index
 
-> [`mcpp`](https://github.com/mcpp-community/mcpp) 构建工具的默认包索引仓库。
-> 在线浏览所有包:**https://mcpplibs.github.io/mcpp-index/**
+**English** | [简体中文](README.zh-CN.md)
 
-本仓收录可被 `mcpp` 直接 `add` 的 C++23 包,既包含 `import` 即用的模块化库,也包含以 `compat` 形态从上游源码或
-头文件构建的第三方 C/C++ 库。每个包对应一个 `pkgs/<首字母>/<包名>.lua` 描述文件。
+> The default package index repository for the [`mcpp`](https://github.com/mcpp-community/mcpp) build tool.
+> Browse every package online: **https://mcpplibs.github.io/mcpp-index/**
 
-## 使用
+This repository hosts the C++23 packages that `mcpp` can `add` directly — both modular libraries that are ready to
+`import`, and third-party C/C++ libraries built from upstream sources or headers in `compat` form. Every package maps
+to one `pkgs/<initial>/<name>.lua` descriptor file.
+
+## Usage
 
 ```bash
-mcpp add ftxui@6.1.9            # 添加依赖到 mcpp.toml
-mcpp build                     # 自动拉取源码并构建,依赖沿链路自动传递
+mcpp add ftxui@6.1.9           # add the dependency to mcpp.toml
+mcpp build                     # fetch sources and build; dependencies propagate along the chain
 
-mcpp search <keyword>          # 搜索并刷新索引
-mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上游源
+mcpp search <keyword>          # search and refresh the index
+mcpp self config --mirror CN   # switch to the CN mirror; GLOBAL upstream is the default
 ```
 
-完整包列表见 **[在线索引站](https://mcpplibs.github.io/mcpp-index/)**。
+For the full package list, see the **[online index site](https://mcpplibs.github.io/mcpp-index/)**.
 
-## 包生态与贡献
+## Package ecosystem and contributing
 
-本仓收录两类包:
+Two kinds of packages live here:
 
-- **原生 mcpp 模块库**:以 C++23 模块发布、`import` 即用,包括 `mcpplibs.*`、`nlohmann.json`、`imgui`、`ffmpeg`、`opencv`,以及由
-  用户基于 mcpp 开发并登记进索引的库(如 `tensorvia-cpu`)。其上游通常自带 `mcpp.toml`,描述文件(Form A)只声明
-  元数据与下载地址。
-- **第三方 C/C++ 库(`compat`)**:其上游不提供 mcpp 支持,描述文件(Form B)内联构建信息。该类库存在
-  header-only、纯 C 源码、C++23 module wrapper 等形态,可选组件经 `features` 门控,并配备 GitCode CN 镜像。
+- **Native mcpp module libraries**: shipped as C++23 modules and ready to `import` — `mcpplibs.*`, `nlohmann.json`,
+  `imgui`, `ffmpeg`, `opencv`, plus libraries developed on top of mcpp by users and registered into the index (such as
+  `tensorvia-cpu`). Their upstream usually carries its own `mcpp.toml`, so the descriptor (Form A) only declares
+  metadata and a download address.
+- **Third-party C/C++ libraries (`compat`)**: upstream offers no mcpp support, so the descriptor (Form B) inlines the
+  build information. These come in several shapes — header-only, plain C sources, C++23 module wrapper — with optional
+  components gated behind `features` and a GitCode CN mirror configured.
 
-### 参考示例(`.lua` 描述符)
+### Reference examples (`.lua` descriptors)
 
-| 形态 | 示例 |
+| Shape | Examples |
 |------|------|
-| 原生模块库(Form A) | [`mcpplibs.xpkg`](pkgs/x/xpkg.lua) · [`mcpplibs.tinyhttps`](pkgs/t/tinyhttps.lua) · [`tensorvia-cpu`](pkgs/t/tensorvia-cpu.lua) · [`ffmpeg`](pkgs/f/ffmpeg.lua)(模块层,源码经 `compat.ffmpeg` 直编) · [`opencv`](pkgs/o/opencv.lua)(单仓库:模块层与 OpenCV 5 全源码构建同在包内,索引侧只留本描述符) |
-| C 源码 compat(含 `features`) | [`compat.cjson`](pkgs/c/compat.cjson.lua) · [`compat.zlib`](pkgs/c/compat.zlib.lua) |
-| header-only(含 `features`) | [`compat.eigen`](pkgs/c/compat.eigen.lua) |
-| 运行时 loader compat(纯源码,绕开上游 codegen/asm) | [`compat.vulkan`](pkgs/c/compat.vulkan.lua)(Khronos loader:`loader/generated/` 已签入,汇编路径经 `UNKNOWN_FUNCTIONS_SUPPORTED` 降级为纯 C,故无需 CMake/Python/汇编器;windows 延后)· [`compat.vulkan-headers`](pkgs/c/compat.vulkan-headers.lua) |
-| 全源码直编 + 生成 config(仅缺口平台) | [`compat.curl`](pkgs/c/compat.curl.lua)(win32 用上游签入 config,unix 生成) · [`compat.sdl2`](pkgs/c/compat.sdl2.lua)(win/mac 用上游签入 config,linux 生成 + 手工开 X11) |
-| 补索引空缺的头文件包 | [`compat.glx-headers`](pkgs/c/compat.glx-headers.lua)(libglvnd 的 `GL/glx.h`,Khronos registry 不含,SDL 的 X11 后端必需) |
-| C++ 应用框架 compat(依赖复用索引内既有包) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua)(上游 `3rd/` 自带 8 个 vendored 依赖,此处一个不编,全部改指索引内同版本 `compat.*`) |
-| 互斥后端(同包多后端二选一) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua):`vulkan` / `sdl2` 各自**替换**默认的 OpenGL / GLFW,默认后端由"不点名任何 feature"表达,并不存在 `opengl`/`glfw` feature。`default` feature 表达不了互斥 —— 它自带的 `defines`/`sources`/`deps` 完全不生效,而 `implies` 又恒生效、无法被点名的 feature 覆盖(后者反而正好是本表『恒开的 interface define』一行的解法)。可行解是读 mcpp 本就会传的 `-DMCPP_FEATURE_<NAME>`,在强制包含头里做前置判定。另注意 `cflags` 只作用于 C TU,C++ 需 `cxxflags` —— 只写进 `cflags` 的后端 define 到不了任何 `.cpp` |
-| 宿主运行时适配(不 vendor 驱动) | [`compat.glx-runtime`](pkgs/c/compat.glx-runtime.lua) · [`compat.vulkan-runtime`](pkgs/c/compat.vulkan-runtime.lua)(mcpp 产物跑在自带 glibc 下,裸 soname 的 `dlopen` 够不到宿主驱动;用符号链接农场 + `runtime.library_dirs` 打通。注意 farm 只放带版本号的 soname —— `library_dirs` 同时进链接行) |
-| 恒开的 interface define | [`compat.curl`](pkgs/c/compat.curl.lua) 的 `CURL_STATICLIB`:`cflags` 恒开但包私有,feature `defines` 可达消费端但需点名 —— `default = { implies = … }` 无条件生效,恰好两者兼得 |
-| 单包多 major(形态随版本切换) | [`compat.catch2`](pkgs/c/compat.catch2.lua)(3.x 编 `src/catch2/` 出静态库;2.x 走 `single_include/` header-only) |
-| 外部构建系统(`install()` 从源码构建) | [`compat.openblas`](pkgs/c/compat.openblas.lua)(Make) · [`compat.openssl`](pkgs/c/compat.openssl.lua)(Perl Configure + Make,静态 libssl/libcrypto) |
-| 全源码直编(config 快照 + 源列表,零外部构建系统) | [`compat.ffmpeg`](pkgs/c/compat.ffmpeg.lua)(2281 TU 含 NASM 汇编,28 个目录 glob 声明) |
+| Native module library (Form A) | [`mcpplibs.xpkg`](pkgs/x/xpkg.lua) · [`mcpplibs.tinyhttps`](pkgs/t/tinyhttps.lua) · [`tensorvia-cpu`](pkgs/t/tensorvia-cpu.lua) · [`ffmpeg`](pkgs/f/ffmpeg.lua) (module layer; sources compiled directly through `compat.ffmpeg`) · [`opencv`](pkgs/o/opencv.lua) (single repository: the module layer and the full OpenCV 5 source build both live in the package, and only this descriptor stays on the index side) |
+| C-source compat (with `features`) | [`compat.cjson`](pkgs/c/compat.cjson.lua) · [`compat.zlib`](pkgs/c/compat.zlib.lua) |
+| header-only (with `features`) | [`compat.eigen`](pkgs/c/compat.eigen.lua) |
+| Runtime loader compat (pure sources, sidestepping upstream codegen/asm) | [`compat.vulkan`](pkgs/c/compat.vulkan.lua) (the Khronos loader: `loader/generated/` is checked in, and the assembly path degrades to plain C through `UNKNOWN_FUNCTIONS_SUPPORTED`, so no CMake/Python/assembler is needed; windows deferred) · [`compat.vulkan-headers`](pkgs/c/compat.vulkan-headers.lua) |
+| Whole-source direct build + generated config (only where a platform lacks one) | [`compat.curl`](pkgs/c/compat.curl.lua) (win32 uses upstream's checked-in config, unix generates one) · [`compat.sdl2`](pkgs/c/compat.sdl2.lua) (win/mac use upstream's checked-in config; linux generates one and enables X11 by hand) |
+| Header package filling a gap in the index | [`compat.glx-headers`](pkgs/c/compat.glx-headers.lua) (libglvnd's `GL/glx.h`, absent from the Khronos registry and required by SDL's X11 backend) |
+| C++ application framework compat (dependencies reuse packages already in the index) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua) (upstream's `3rd/` ships 8 vendored dependencies; none of them is compiled here — all are redirected to the same-version `compat.*` packages in this index) |
+| Mutually exclusive backends (one of several inside one package) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua): `vulkan` / `sdl2` each **replace** the default OpenGL / GLFW, and the default backend is expressed by *naming no feature at all* — there is no `opengl`/`glfw` feature. A `default` feature cannot express exclusivity: its own `defines`/`sources`/`deps` have no effect whatsoever, while its `implies` always applies and cannot be overridden by a named feature (which is, conversely, exactly the solution for the "always-on interface define" row below). The workable answer is to read the `-DMCPP_FEATURE_<NAME>` mcpp passes anyway and decide up front in a force-included header. Note also that `cflags` only reaches C TUs — C++ needs `cxxflags`, so a backend define written only into `cflags` never reaches any `.cpp` |
+| Host runtime adaptation (drivers are not vendored) | [`compat.glx-runtime`](pkgs/c/compat.glx-runtime.lua) · [`compat.vulkan-runtime`](pkgs/c/compat.vulkan-runtime.lua) (mcpp binaries run against a bundled glibc, so a bare-soname `dlopen` never reaches the host drivers; a symlink farm plus `runtime.library_dirs` bridges that. Note the farm holds only versioned sonames — `library_dirs` also joins the link line) |
+| Always-on interface define | `CURL_STATICLIB` in [`compat.curl`](pkgs/c/compat.curl.lua): `cflags` is always on but package-private, while a feature's `defines` reaches consumers yet has to be named — `default = { implies = … }` applies unconditionally and happens to give both |
+| Multiple majors in one package (shape switches with the version) | [`compat.catch2`](pkgs/c/compat.catch2.lua) (3.x compiles `src/catch2/` into a static library; 2.x goes header-only through `single_include/`) |
+| External build system (`install()` builds from source) | [`compat.openblas`](pkgs/c/compat.openblas.lua) (Make) · [`compat.openssl`](pkgs/c/compat.openssl.lua) (Perl Configure + Make, static libssl/libcrypto) |
+| Whole-source direct build (config snapshot + source list, no external build system) | [`compat.ffmpeg`](pkgs/c/compat.ffmpeg.lua) (2281 TUs including NASM assembly, declared through 28 directory globs) |
 | C++23 module wrapper | [`nlohmann.json`](pkgs/n/nlohmann.json.lua) · [`marzer.tomlplusplus`](pkgs/m/marzer.tomlplusplus.lua) · [`neargye.magic_enum`](pkgs/n/neargye.magic_enum.lua) |
 
-### 新增一个包
+### Adding a package
 
-完整流程定义于 agent skill [`add-mcpp-index-package`](.agents/skills/add-mcpp-index-package/SKILL.md)。可将下列
-指令提供给 agent(如 Claude Code),由其调用该 skill 完成描述文件的编写与全流程:
+The full procedure is defined in the agent skill
+[`add-mcpp-index-package`](.agents/skills/add-mcpp-index-package/SKILL.md). Hand the instruction below to an agent
+(Claude Code, for example) and it will invoke that skill to write the descriptor and carry out the whole flow:
 
 ```text
-参考本仓 skill `.agents/skills/add-mcpp-index-package`,将 <库名 / 仓库URL> @<版本> 收录进 mcpp-index:
-判定形态;配置 CN 镜像(无 mcpp-res 权限时使用 plain-string 上游 url);编写 pkgs/<首字母>/<包名>.lua;
-添加 tests/examples/<库>/ 测试工程并登记为 workspace 成员;使用与 CI 同版本的 mcpp 本地执行
-`mcpp test -p <成员>` 进行验证;更新 README 与在线索引;提交 PR 并确认 CI 通过。
+Following this repo's skill `.agents/skills/add-mcpp-index-package`, add <library name / repo URL> @<version> to
+mcpp-index: determine the shape; configure the CN mirror (use a plain-string upstream url when you have no mcpp-res
+access); write pkgs/<initial>/<name>.lua; add a tests/examples/<lib>/ test project and register it as a workspace
+member; verify locally with the same mcpp version CI pins by running `mcpp test -p <member>`; update the README and
+the online index; open a PR and confirm CI is green.
 ```
 
-细节文档位于 [`docs/`](docs/),供人工与 agent 共同使用:
+Detailed documentation lives in [`docs/`](docs/), written for humans and agents alike:
 
-- [库形态与描述符模板](docs/package-types.md):各类形态的描述符模板与样例,以及最小工程的写法。
-- [CN 镜像闭环](docs/cn-mirror.md):`gtc` 与 gitcode 操作,以及无 `mcpp-res` 权限时的回退方案。
-- [仓库结构与 schema 与 CI](docs/repository-and-schema.md):字段速查、选跑机制与本地 lint。
-- 字段的**权威判定**是 `mcpp xpkg parse`(CI 用的就是它:未知的 mcpp 段字段直接失败,而不是被静默忽略);
-  语义与约束见 mcpp 仓的 [`docs/spec/`](https://github.com/mcpp-community/mcpp/tree/main/docs/spec)。
+- [Library shapes and descriptor templates](docs/package-types.md): descriptor templates and samples for each shape,
+  plus how to write the minimal project.
+- [The CN mirror loop](docs/cn-mirror.md): `gtc` and gitcode operations, plus the fallback when you have no
+  `mcpp-res` access.
+- [Repository layout, schema and CI](docs/repository-and-schema.md): field cheat-sheet, selective-run mechanics and
+  local lint.
+- The **authoritative** judge of a field is `mcpp xpkg parse` (exactly what CI runs: an unknown mcpp-segment field
+  fails outright instead of being silently ignored); for semantics and constraints see
+  [`docs/spec/`](https://github.com/mcpp-community/mcpp/tree/main/docs/spec) in the mcpp repository.
 
-> 提交 PR 后,`validate` 自动执行 lint 并按改动库选跑对应 workspace 成员(整个测试面是一个 mcpp
-> workspace,公开模块包 `imgui`/`ffmpeg`/`opencv`/`tinyhttps` 也是普通成员——`compat` 的重定向声明在
-> workspace 根并由成员继承,消费其他命名空间的成员各自覆盖,零 shell 驱动);合并后,`deploy-site`
-> 将其发布至在线浏览站。
+> Once a PR is open, `validate` runs lint automatically and selects the workspace members affected by the changed
+> library (the whole test surface is one mcpp workspace, and the public module packages
+> `imgui`/`ffmpeg`/`opencv`/`tinyhttps` are ordinary members too — the `compat` redirect is declared at the workspace
+> root and inherited by members, while members that consume another namespace override it themselves, with zero shell
+> driving). After the merge, `deploy-site` publishes it to the online browser.
 
-## 相关链接
+## Related links
 
-| 项目 | 说明 |
+| Project | Description |
 |------|------|
-| [mcpp](https://github.com/mcpp-community/mcpp) | 现代 C++23 构建与包管理工具 |
-| [xlings](https://github.com/d2learn/xlings) | mcpp 底层的包安装引擎与沙箱环境 |
-| [xpkg V1 spec](https://github.com/d2learn/xim-pkgindex/blob/main/docs/V1/xpackage-spec.md) | 包描述文件规范 |
-| [mcpplibs](https://github.com/mcpplibs) | mcpp 生态的模块化 C++23 库集合 |
-| [mcpp-res](https://gitcode.com/mcpp-res) | 包资源的 CN 镜像组织(gitcode) |
+| [mcpp](https://github.com/mcpp-community/mcpp) | Modern C++23 build and package management tool |
+| [xlings](https://github.com/d2learn/xlings) | The package installation engine and sandbox environment underneath mcpp |
+| [xpkg V1 spec](https://github.com/d2learn/xim-pkgindex/blob/main/docs/V1/xpackage-spec.md) | Package descriptor specification |
+| [mcpplibs](https://github.com/mcpplibs) | The collection of modular C++23 libraries in the mcpp ecosystem |
+| [mcpp-res](https://gitcode.com/mcpp-res) | The CN mirror organization for package resources (gitcode) |
 
-## 社区
+## Community
 
-[mcpp issues](https://github.com/mcpp-community/mcpp/issues) · [d2learn 论坛](https://forum.d2learn.org)
+[mcpp issues](https://github.com/mcpp-community/mcpp/issues) · [d2learn forum](https://forum.d2learn.org)
 
 ## License
 
-包描述文件采用 CC0;各上游库保留其自身许可证。
+The package descriptors are CC0; each upstream library keeps its own license.

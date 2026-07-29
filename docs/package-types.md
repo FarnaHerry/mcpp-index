@@ -1,115 +1,125 @@
-# 库形态与描述符模板
+# Library shapes and descriptor templates
 
-编写描述符前,应先判定库所属的形态,再选用对应模板。`mcpp = {}` 内的所有路径均为**相对 verdir 的 GLOB**:
-前导 `*` 用于吸收 tarball 的 `<repo>-<tag>/` wrap 层;`*` 匹配单段,`**` 匹配跨段(例如 `*/blas/*.cpp` 合法)。
+**English** | [简体中文](zh/package-types.md)
 
-A–D 是四种**基础**形态,先按它们判定;E–G 是在基础形态之上叠加的处理方式,按需组合。
+Before writing a descriptor, work out which shape the library belongs to, then pick the matching template. Every path
+inside `mcpp = {}` is a **GLOB relative to verdir**: a leading `*` absorbs the `<repo>-<tag>/` wrap layer of a tarball;
+`*` matches a single segment and `**` matches across segments (so `*/blas/*.cpp` is legal).
 
-| 形态 | 特征 | 样例 | 关键字段 |
+A–D are the four **basic** shapes — judge by them first; E–G are treatments layered on top of a basic shape, to be
+combined as needed.
+
+| Shape | Characteristics | Samples | Key fields |
 |---|---|---|---|
-| **A. C 源码 compat** | 纯 C 或少量源码,用户 `#include <foo.h>` | `pkgs/c/compat.cjson.lua`、`compat.zlib.lua`、`compat.gtest.lua` | `sources` 与 `c_standard` |
-| **B. header-only** | 纯头文件,无需编译 | `pkgs/c/compat.eigen.lua`、`compat.opengl.lua`、`compat.khrplatform.lua` | `include_dirs` 与 anchor 源 |
-| **C. C++23 module** | 暴露 `import x.y;` | `pkgs/n/nlohmann.json.lua` | `modules` 与 `generated_files` 或源 `.cppm` |
-| **D. 外部 Form-A 模块仓** | 上游自带 mcpp 描述符,独立仓库 | `pkgs/i/imgui.lua`、`pkgs/m/mcpplibs.*` | `mcpp = "<repo 路径>"`(Form A) |
-| **E. 生成 config 的全源码直编** | 上游用 configure/CMake 生成配置头,此处以 `generated_files` 落一份快照 | `pkgs/c/compat.libpng.lua`、`compat.curl.lua`、`compat.sdl2.lua`、`compat.ffmpeg.lua` | `generated_files` + `include_dirs` |
-| **F. 共享库 compat** | 必须是**唯一**的那个 `.so`(会被第三方 `dlopen`) | `pkgs/c/compat.x11.lua` 等 X11 家族、`compat.vulkan.lua`(linux) | `targets = { kind = "shared", soname = … }` |
-| **G. 宿主运行时适配** | 驱动之类无法 vendor 的东西,只做符号链接农场 + 元数据 | `pkgs/c/compat.glx-runtime.lua`、`compat.vulkan-runtime.lua` | `runtime.library_dirs` / `capabilities` |
+| **A. C-source compat** | plain C or a handful of sources; the user writes `#include <foo.h>` | `pkgs/c/compat.cjson.lua`, `compat.zlib.lua`, `compat.gtest.lua` | `sources` and `c_standard` |
+| **B. header-only** | headers only, nothing to compile | `pkgs/c/compat.eigen.lua`, `compat.opengl.lua`, `compat.khrplatform.lua` | `include_dirs` and an anchor source |
+| **C. C++23 module** | exposes `import x.y;` | `pkgs/n/nlohmann.json.lua` | `modules` plus `generated_files` or a source `.cppm` |
+| **D. External Form-A module repo** | upstream ships its own mcpp descriptor in a separate repository | `pkgs/i/imgui.lua`, `pkgs/m/mcpplibs.*` | `mcpp = "<repo path>"` (Form A) |
+| **E. Whole-source direct build with a generated config** | upstream generates its config header through configure/CMake; here a snapshot of it lands in `generated_files` | `pkgs/c/compat.libpng.lua`, `compat.curl.lua`, `compat.sdl2.lua`, `compat.ffmpeg.lua` | `generated_files` + `include_dirs` |
+| **F. Shared-library compat** | has to be the **only** copy of that `.so` in the process (third parties `dlopen` it) | the X11 family such as `pkgs/c/compat.x11.lua`, and `compat.vulkan.lua` (linux) | `targets = { kind = "shared", soname = … }` |
+| **G. Host runtime adaptation** | things that cannot be vendored, such as drivers — only a symlink farm plus metadata | `pkgs/c/compat.glx-runtime.lua`, `compat.vulkan-runtime.lua` | `runtime.library_dirs` / `capabilities` |
 
-完整的样例索引见[根 README 的「参考示例」表](../README.md#参考示例lua-描述符)。
+For the complete sample index, see the
+[Reference examples table in the root README](../README.md#reference-examples-lua-descriptors).
 
-A、B、C 三类共用的骨架(`package` 头与 `xpm`)如下:
+Shapes A, B and C share this skeleton (the `package` header and `xpm`):
 
 ```lua
 package = {
     spec        = "1",
-    namespace   = "compat",          -- 点分层级路径;compat / nlohmann / mcpplibs 等,决定 import 前缀与依赖 key
-    name        = "<lib>",           -- 单一原子段,不重复 namespace(SPEC-001 §3.2)
+    namespace   = "compat",          -- dotted hierarchical path; compat / nlohmann / mcpplibs / …, decides the import prefix and the dependency key
+    name        = "<lib>",           -- a single atomic segment; never repeats the namespace (SPEC-001 §3.2)
     description = "…",
     licenses    = {"MIT"},           -- SPDX
     repo        = "https://…",
     type        = "package",
 
-    xpm = {  -- 三平台均需声明;纯源码或纯头时三平台共用同一 url 与 sha256
+    xpm = {  -- all three platforms must be declared; pure-source or pure-header packages share one url and sha256 across them
         linux   = { ["1.2.3"] = { url = { GLOBAL = "https://…/v1.2.3.tar.gz",
                                           CN     = "https://gitcode.com/mcpp-res/<slug>/releases/download/1.2.3/<slug>-1.2.3.tar.gz" },
-                                  sha256 = "<计算所得>" } },
+                                  sha256 = "<computed>" } },
         macosx  = { ["1.2.3"] = { url = { GLOBAL = "…", CN = "…" }, sha256 = "…" } },
         windows = { ["1.2.3"] = { url = { GLOBAL = "…", CN = "…" }, sha256 = "…" } },
     },
 
-    mcpp = { … 见下文各形态 … },
+    mcpp = { … see each shape below … },
 }
 ```
 
-身份是 `(namespace, name)` 二元组:层级一律放 `namespace`,`name` 只写一段。文件名不参与解析,推荐
-`pkgs/<首字母>/<namespace>.<name>.lua`(命中 mcpp 的快路径)。详见
-[仓库结构与 schema](repository-and-schema.md#包身份namespace-name)。
+Identity is the `(namespace, name)` pair: hierarchy always goes in `namespace`, and `name` carries exactly one segment.
+The file name plays no part in resolution; `pkgs/<initial>/<namespace>.<name>.lua` is recommended (it hits mcpp's fast
+path). See [Repository layout and schema](repository-and-schema.md#package-identity-namespace-name) for details.
 
 ---
 
-## A. C 源码 compat(`compat.cjson` / `compat.zlib`)
+## A. C-source compat (`compat.cjson` / `compat.zlib`)
 
-将 C 源码编译为 lib,头文件经 `include_dirs` 暴露,可选组件由 `features` 门控。
+Compile the C sources into a lib, expose the headers through `include_dirs`, and gate optional components behind
+`features`.
 
 ```lua
 mcpp = {
-    language     = "c++23",   -- 与既有 compat 对齐;实际的 C 行为由 c_standard 决定
+    language     = "c++23",   -- aligned with the existing compat packages; actual C behavior comes from c_standard
     import_std   = false,
-    c_standard   = "c99",     -- 或 c11
-    include_dirs = { "*" },           -- 暴露顶层头文件(*/foo.h)
-    sources      = { "*/cJSON.c" },   -- 核心源码,始终编译
+    c_standard   = "c99",     -- or c11
+    include_dirs = { "*" },           -- expose the top-level headers (*/foo.h)
+    sources      = { "*/cJSON.c" },   -- core sources, always compiled
     targets      = { ["cjson"] = { kind = "lib" } },
-    features     = {                  -- 可选扩展,默认不编译
+    features     = {                  -- optional extras, not compiled by default
         ["utils"] = { sources = { "*/cJSON_Utils.c" } },
     },
     deps         = { },
 }
 ```
 
-要点:多源码时可逐个列出(`compat.zlib` 列出了 15 个 `.c`)或使用 glob;需要配置头时可用 `generated_files` 合成
-(`compat.zlib` 使用 `mcpp_generated/include/mcpp_zlib_config.h` 配合 `cflags = {"-include …"}`)。
+Notes: with many sources you can either list them one by one (`compat.zlib` lists 15 `.c` files) or use a glob; when a
+config header is needed, synthesize it with `generated_files` (`compat.zlib` uses
+`mcpp_generated/include/mcpp_zlib_config.h` together with `cflags = {"-include …"}`).
 
-## B. header-only(`compat.eigen` / `compat.opengl`)
+## B. header-only (`compat.eigen` / `compat.opengl`)
 
-此类库无可编译源码:由 `include_dirs` 暴露头文件,并加入一个 trivial anchor `.c`,以提供一个可构建的 lib 目标。
+These libraries have no compilable sources: `include_dirs` exposes the headers, and a trivial anchor `.c` is added so
+there is a buildable lib target.
 
 ```lua
 mcpp = {
     language     = "c++23",
     import_std   = false,
     c_standard   = "c11",
-    include_dirs = { "*" },           -- 或更精确的 "*/include" / "*/api"
+    include_dirs = { "*" },           -- or something tighter, "*/include" / "*/api"
     generated_files = {
         ["mcpp_generated/<lib>_anchor.c"] = "int mcpp_compat_<lib>_anchor(void) { return 0; }\n",
     },
     sources      = { "mcpp_generated/<lib>_anchor.c" },
     targets      = { ["<lib>"] = { kind = "lib" } },
-    -- 若存在额外可编译源码的组件(非纯头),可实现为 source-gated feature:
+    -- a component that does carry extra compilable sources (i.e. is not header-only) can become a source-gated feature:
     features     = {
-        ["blas"] = { sources = { "*/blas/*.cpp", "*/blas/f2c/*.c" } },  -- eigen 实例
+        ["blas"] = { sources = { "*/blas/*.cpp", "*/blas/f2c/*.c" } },  -- the eigen case
     },
     deps         = { },
 }
 ```
 
-注意:纯头形式的可选项无法隐藏(与核心共享 include 根),因此不应为其勉强构造 feature;只有额外可编译源码才能被门控
-(`compat.eigen` 的 `blas` 即由 C++ 与 f2c 转换的 C 构成,不依赖 Fortran,因此可门控)。
+Careful: an optional part that is header-only cannot be hidden (it shares the include root with the core), so do not
+force a feature around it; only extra compilable sources can be gated (`compat.eigen`'s `blas` consists of C++ and
+f2c-converted C, needs no Fortran, and therefore can be gated).
 
-## C. C++23 module(`nlohmann.json`)
+## C. C++23 module (`nlohmann.json`)
 
-使用户可 `import x.y;`。有两种实现路径:
+Lets users write `import x.y;`. There are two ways to get there:
 
-1. **上游已自带 `.cppm`**:直接 `sources = { "*/path/to/unit.cppm" }`。
-2. **上游 release 不含**(较常见):以 `generated_files` 合成 wrapper(`#include <header>`、`export module x.y;`、
-   `export using …`),基底头 pin 至已发布 tag。应逐字复用上游官方 wrapper,而非自行推断符号清单。
+1. **Upstream already ships a `.cppm`**: point straight at it with `sources = { "*/path/to/unit.cppm" }`.
+2. **The upstream release does not include one** (the common case): synthesize a wrapper through `generated_files`
+   (`#include <header>`, `export module x.y;`, `export using …`), with the base header pinned to a published tag.
+   Reuse upstream's official wrapper verbatim rather than inferring the symbol list yourself.
 
 ```lua
 mcpp = {
     schema       = "0.1",
     language     = "c++23",
-    import_std   = false,                 -- wrapper 含上游头,启用 import std 易产生冲突
+    import_std   = false,                 -- the wrapper includes upstream headers, and enabling import std invites conflicts
     modules      = { "nlohmann.json" },
-    include_dirs = { "*/single_include" }, -- 使 wrapper 内的 #include <…> 可解析
+    include_dirs = { "*/single_include" }, -- makes the #include <…> inside the wrapper resolvable
     generated_files = {
         ["mcpp_generated/nlohmann.json.cppm"] = "module;\n#include <nlohmann/json.hpp>\nexport module nlohmann.json;\n…",
     },
@@ -119,50 +129,56 @@ mcpp = {
 }
 ```
 
-注意:mcpp 段解析器不支持 Lua 长括号 `[[ … ]]`,`generated_files` 的内容必须采用双引号字符串并对 `\n`、`\"`
-转义,否则报 `malformed mcpp segment`。消费侧不应将 `import x.y;` 与文本 `#include <string>` 混用(会与 GCC
-modules 冲突),应配合 `import std;`。
+Careful: the mcpp segment parser does not support Lua long brackets `[[ … ]]`, so `generated_files` content must use
+double-quoted strings with `\n` and `\"` escaped — otherwise you get `malformed mcpp segment`. On the consumer side,
+do not mix `import x.y;` with a textual `#include <string>` (it conflicts with GCC modules); pair it with `import std;`
+instead.
 
-## D. 外部 Form-A 模块仓(`imgui` / `mcpplibs.*`)
+## D. External Form-A module repo (`imgui` / `mcpplibs.*`)
 
-上游或独立仓库自带 mcpp 描述符,本仓仅充当指针:`mcpp = "<相对或远程路径>"`(Form A,而非内联的 Form B)。新增的
-独立库通常归属于另一仓库(如 `mcpplibs/imgui-m`),本仓只负责登记。写法可参照 `pkgs/i/imgui.lua` 与
-`pkgs/x/xpkg.lua`。
+Upstream, or a separate repository, ships its own mcpp descriptor, and this repository is only a pointer:
+`mcpp = "<relative or remote path>"` (Form A, rather than the inline Form B). A newly added standalone library usually
+belongs to another repository (`mcpplibs/imgui-m`, for example) and this repository only registers it. See
+`pkgs/i/imgui.lua` and `pkgs/x/xpkg.lua` for how to write one.
 
 ---
 
-## E. 生成 config 的全源码直编(`compat.curl` / `compat.sdl2`)
+## E. Whole-source direct build with a generated config (`compat.curl` / `compat.sdl2`)
 
-上游用 configure 或 CMake 生成一份配置头,而本仓要的是「列出 .c 文件」。可行的前提是这类库把**未选中的后端
-编成空 TU**(curl 的 `vtls/gtls.c` 从头到尾是 `#ifdef USE_GNUTLS`,SDL 的 `src/video/windows/*.c` 同理),于是
-源码列表可以是朴素的 glob,配置全部落在一份 `generated_files` 快照里。
+Upstream generates a config header through configure or CMake, whereas what this repository wants is "list the .c
+files". That works because libraries of this kind compile the **unselected backends into empty TUs** (curl's
+`vtls/gtls.c` is one big `#ifdef USE_GNUTLS` from top to bottom, and SDL's `src/video/windows/*.c` likewise), so the
+source list can be a plain glob and all the configuration lands in one `generated_files` snapshot.
 
-只在**上游有缺口的平台**生成:curl 签入了 `lib/config-win32.h`(Windows 无需生成),SDL 签入了
-`SDL_config_windows.h` / `SDL_config_macosx.h`(只有 linux 落到无用的 `SDL_config_minimal.h`)。生成时务必
-用**本索引的工具链**跑 configure —— 用宿主 `cc` 生成的 curl 配置曾断言 `ssize_t` 不存在,导致 curl 编不过自己
-的配置。
+Generate one only on the platforms where **upstream leaves a gap**: curl checks in `lib/config-win32.h` (Windows needs
+nothing generated), and SDL checks in `SDL_config_windows.h` / `SDL_config_macosx.h` (only linux falls through to the
+useless `SDL_config_minimal.h`). When generating, be sure to run configure with **this index's toolchain** — a curl
+config generated with the host `cc` once asserted that `ssize_t` does not exist, and curl then failed to compile
+against its own config.
 
-## F. 共享库 compat(`compat.x11` 家族 / `compat.vulkan`)
+## F. Shared-library compat (the `compat.x11` family / `compat.vulkan`)
 
-当这个库会被第三方 `dlopen` 时,它必须是进程里**唯一**的那一个,静态链接会出问题。
+When a library gets `dlopen`ed by third parties, it must be the **only** copy in the process; static linking breaks.
 
 ```lua
 targets = { ["vulkan"] = { kind = "shared", soname = "libvulkan.so.1" } },
 ```
 
-`soname` 不是可选项:SDL2 的 `SDL_CreateWindow(SDL_WINDOW_VULKAN)` 会 `dlopen("libvulkan.so.1")` 并用它解析
-surface 创建。若 loader 是静态的,应用最终会有两个 loader —— 自己那份建 instance,SDL 那份建 surface ——
-`createSurface` 拿到一个对方没见过的 instance 而失败。
+`soname` is not optional: SDL2's `SDL_CreateWindow(SDL_WINDOW_VULKAN)` calls `dlopen("libvulkan.so.1")` and resolves
+surface creation through it. With a static loader, the application ends up with two loaders — its own creating the
+instance and SDL's creating the surface — and `createSurface` fails on an instance the other side has never seen.
 
-声明位置也有讲究:`kind = "shared"` 会把 `-fPIC` 传播给消费者,而 clang 对 msvc 目标直接拒绝该选项。因此
-`compat.vulkan` 把它写在 **linux 块内**,Windows 走另一套(链接预生成的 import library)。平台块里的 `targets`
-会覆盖顶层声明,`compat.ffmpeg` 亦如此。
+Where you declare it matters too: `kind = "shared"` propagates `-fPIC` to consumers, and clang rejects that option
+outright for msvc targets. So `compat.vulkan` declares it **inside the linux block**, while Windows takes another
+route (linking a pre-generated import library). A `targets` inside a platform block overrides the top-level
+declaration; `compat.ffmpeg` does the same.
 
-## G. 宿主运行时适配(`compat.glx-runtime` / `compat.vulkan-runtime`)
+## G. Host runtime adaptation (`compat.glx-runtime` / `compat.vulkan-runtime`)
 
-GPU 驱动无法打包 —— ICD 必须匹配机器上的内核驱动。本仓的既定立场是把它建模为**宿主能力**,而不是假装厂商
-驱动是可再分发的普通包(见 `.agents/docs/2026-06-03-gl-runtime-packages-plan.md`)。这类包不 vendor 任何东西,
-只做符号链接农场加元数据:
+GPU drivers cannot be packaged — an ICD has to match the kernel driver on the machine. This repository's settled
+position is to model that as a **host capability** rather than pretend vendor drivers are ordinary redistributable
+packages (see `.agents/docs/2026-06-03-gl-runtime-packages-plan.md`). Packages of this kind vendor nothing and are
+just a symlink farm plus metadata:
 
 ```lua
 runtime = {
@@ -171,22 +187,24 @@ runtime = {
 },
 ```
 
-之所以需要它:mcpp 的产物跑在**自带的 glibc** 下(`interp` 指向 `xim-x-glibc`,rpath 只覆盖 mcpp 自己的树),
-因此裸 soname 的 `dlopen` 根本不搜索宿主库路径 —— loader 能找到全部 ICD manifest,却一个驱动都打不开。
+Why it is needed: mcpp's binaries run under a **bundled glibc** (`interp` points at `xim-x-glibc`, and the rpath only
+covers mcpp's own tree), so a bare-soname `dlopen` does not search the host library paths at all — the loader finds
+every ICD manifest and yet cannot open a single driver.
 
-两个反复踩到的细节:
+Two details that keep biting:
 
-- **农场里只放带版本号的 soname**(`lib*.so.*`)。`runtime.library_dirs` 同时进**链接行**,一个裸 `libxcb.so`
-  会遮蔽本仓自己的 `compat.xcb`,链接报 `undefined reference to XauDisposeAuth`(mcpp#304)。带版本号的名字对
-  链接器不可见,而恰好是 `dlopen` 要的。
-- **闭包必须完整**。农场里有 `libxcb.so.1` 却没有它依赖的 `libXau.so.6`,会遮蔽掉本来能解析的宿主副本,可执行
-  文件直接起不来。
+- **Put only versioned sonames in the farm** (`lib*.so.*`). `runtime.library_dirs` also joins the **link line**, so a
+  bare `libxcb.so` shadows this repository's own `compat.xcb` and the link fails with
+  `undefined reference to XauDisposeAuth` (mcpp#304). Versioned names are invisible to the linker and are exactly what
+  `dlopen` asks for.
+- **The closure has to be complete.** A farm holding `libxcb.so.1` but not the `libXau.so.6` it depends on shadows the
+  host copy that would otherwise have resolved, and the executable simply fails to start.
 
 ---
 
-## 最小工程(`tests/examples/<short>/`)
+## The minimal project (`tests/examples/<short>/`)
 
-`mcpp.toml`(短式依赖与长式依赖二选一):
+`mcpp.toml` (pick either the short or the long dependency form):
 
 ```toml
 [package]
@@ -194,15 +212,16 @@ name = "<short>-example"
 version = "0.1.0"
 [toolchain]
 default = "gcc@16.1.0"
-# `compat` 由 workspace 根的 [indices] 继承,成员无需再写;
-# 消费其他命名空间时才在此声明,例如 `[indices] fmtlib = { path = "../../.." }`
-# —— 成员级声明会**替换**根级表而非与之合并(这正是保持单个项目索引 repo 的方式)。
+# `compat` is inherited from the workspace root's [indices], so members need not repeat it;
+# declare one here only when consuming another namespace, e.g. `[indices] fmtlib = { path = "../../.." }`
+# — a member-level declaration **replaces** the root-level table rather than merging with it
+# (which is exactly how a single project index repo is maintained).
 [dependencies.compat]
-<short> = "1.2.3"                          # 或:<short> = { version = "1.2.3", features = ["…"] }
+<short> = "1.2.3"                          # or: <short> = { version = "1.2.3", features = ["…"] }
 [targets.<short>-example]
 kind = "bin"
-main = "src/main.cpp"                      # C 库可使用 .c
+main = "src/main.cpp"                      # C libraries may use .c
 ```
 
-`src/main.cpp` 应包含有效断言并 `return ok ? 0 : 1`,而非仅打印输出。module 库使用 `import std; import x.y;`;
-header-only 与 C 库使用文本 `#include`。
+`src/main.cpp` should carry real assertions and `return ok ? 0 : 1`, not merely print output. Module libraries use
+`import std; import x.y;`; header-only and C libraries use textual `#include`.

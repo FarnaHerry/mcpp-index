@@ -16,11 +16,12 @@ description: Use when adding a new third-party library/package to the mcpp-index
 - `.agents/docs/2026-06-28-add-eigen-plan.md`(header-only 库及 source-gated `blas` feature)。
 - 既有 PR:#48(cjson 与 nlohmann.json)、#50(eigen)。
 
-配套参考文档位于仓库 `docs/` 目录,供人工与 agent 共同使用,可按需查阅:
+配套参考文档位于仓库 `docs/` 目录(英文为默认版本,中文版在 `docs/zh/`,内容对等),供人工与 agent 共同使用,
+可按需查阅(下列链接指向中文版):
 
-- [docs/package-types.md](../../../docs/package-types.md) —— 四种库形态的描述符模板与样例路径。
-- [docs/cn-mirror.md](../../../docs/cn-mirror.md) —— CN 镜像闭环,含无 `mcpp-res` 权限时的回退方案。
-- [docs/repository-and-schema.md](../../../docs/repository-and-schema.md) —— 仓库结构、schema、CI 行为、关键文件与注意事项。
+- [docs/zh/package-types.md](../../../docs/zh/package-types.md) —— 四种库形态的描述符模板与样例路径。
+- [docs/zh/cn-mirror.md](../../../docs/zh/cn-mirror.md) —— CN 镜像闭环,含无 `mcpp-res` 权限时的回退方案。
+- [docs/zh/repository-and-schema.md](../../../docs/zh/repository-and-schema.md) —— 仓库结构、schema、CI 行为、关键文件与注意事项。
 
 ## 适用范围
 
@@ -48,12 +49,12 @@ description: Use when adding a new third-party library/package to the mcpp-index
      **纯头文件 / C 源码 / 自带 `.cppm` 模块 / 含可选组件(可实现 feature)** 中的何种形态。
    - 计算 `sha256sum`,并**重复计算两次以确认稳定**。GitLab 等部分归档源会重新打包,导致 sha 漂移,进而使 CI
      经 GLOBAL 拉取时校验失败。
-2. **确定形态并选择模板**:详见 [docs/package-types.md](../../../docs/package-types.md)。四类形态为:C 源码 compat、
+2. **确定形态并选择模板**:详见 [docs/zh/package-types.md](../../../docs/zh/package-types.md)。四类形态为:C 源码 compat、
    header-only、C++23 module(generated wrapper)、外部 Form-A 模块仓。
 3. **建立 CN 镜像**:使用 `gtc` 在 gitcode `mcpp-res` 组织下建仓并发布 release,上传**与 GLOBAL 相同的 tarball**,
    以保证字节一致(sha 相同)。**在不具备 `mcpp-res` 写权限时**,不应构造镜像表,而应使用纯字符串形式
    `url = "<GLOBAL 上游 release>"`(lint 允许此形式,CN 用户将回退至上游源),镜像由维护者后续补充。详见
-   [docs/cn-mirror.md](../../../docs/cn-mirror.md)。
+   [docs/zh/cn-mirror.md](../../../docs/zh/cn-mirror.md)。
 4. **编写描述符** `pkgs/<x>/<name>.lua`。
    - 目录 `<x>` **取完整包名首字母**(`compat.eigen` 对应 `pkgs/c/`,`nlohmann.json` 对应 `pkgs/n/`),
      而非短名。放置错误将导致本地 path index 报 `not found in local index`。
@@ -70,11 +71,11 @@ description: Use when adding a new third-party library/package to the mcpp-index
      编译为 no-op `main`(`#ifdef __linux__ … #else int main(){return 0;} #endif` 模式)。
    - 如需测试 feature,依赖采用长式声明 `name = { version = "…", features = ["…"] }`。
 7. **本地验证**(使用与 CI 相同版本的 mcpp,详见下文“本地验证”)。必须实际执行 `mcpp test -p <member>` 并通过。
-8. **更新 README**:在对应分类表中新增一条记录。
+8. **更新 README**:在对应分类表中新增一条记录 —— `README.md`(英文,默认)与 `README.zh-CN.md`(中文)两份都要更新。
 9. **撰写设计文档** `.agents/docs/<YYYY-MM-DD>-add-<lib>-plan.md`,记录形态判定、镜像、feature 评估、验证结论
    与注意事项。
 10. **本地 lint**:在本地复现 `validate.yml` 的 lint 检查(语法、必填字段、无前导 v、镜像表校验)。详见
-    [docs/repository-and-schema.md](../../../docs/repository-and-schema.md)。
+    [docs/zh/repository-and-schema.md](../../../docs/zh/repository-and-schema.md)。
 11. **提交变更**:由 `main` 切出新分支,依次 commit、push、开 PR(不应直接推送 `main`)。PR 描述应载明形态、镜像、
     feature 与验证结论。
 12. **确认 CI 通过**:`workspace (linux|macos|windows)` 的选择性成员测试应仅选中本库对应成员并通过

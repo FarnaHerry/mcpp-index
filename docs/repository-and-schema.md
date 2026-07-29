@@ -1,135 +1,179 @@
-# 仓库结构、schema、CI 与关键文件
+# Repository layout, schema, CI and key files
 
-## 仓库布局
+**English** | [简体中文](zh/repository-and-schema.md)
+
+## Repository layout
 
 ```
-pkgs/<x>/<name>.lua          描述符。<x> 取完整包名首字母(compat.* → c,nlohmann.json → n,imgui → i)
-mcpp.toml                    workspace 清单(members 列表)+ 根级 [indices] compat = { path = "." },
-                             由成员继承(相对路径按 workspace 根解析,mcpp ≥ 0.0.97)
-tests/examples/<member>/     每库测试工程(workspace 成员;<member> 为包名去前缀,模块包为
-  mcpp.toml                  <name>-module)。消费 compat 的成员不写 [indices];消费其他
-                             命名空间的成员写恰好一条(模块包用 default),该声明**替换**
-                             根级表而非合并 —— 每个成员最多一个项目级索引 repo 是硬约束,
-                             详见下文「索引重定向」。依赖按平台自门控
+pkgs/<x>/<name>.lua          descriptors. <x> is the initial of the full package name (compat.* → c, nlohmann.json → n, imgui → i)
+mcpp.toml                    workspace manifest (the members list) + the root-level [indices] compat = { path = "." },
+                             inherited by members (relative paths resolve against the workspace root, mcpp >= 0.0.97)
+tests/examples/<member>/     one test project per library (a workspace member; <member> is the package name minus its
+  mcpp.toml                  prefix, or <name>-module for module packages). Members consuming compat write no
+                             [indices]; members consuming another namespace write exactly one (module packages use
+                             default), and that declaration **replaces** the root-level table rather than merging with
+                             it — at most one project-level index repo per member is a hard constraint, see
+                             "Index redirection" below. Dependencies gate themselves per platform
                              ([target.'cfg(...)'])
-  tests/*.cpp                行为断言(独立 main,退出码非 0 即失败)
-tests/check_mirror_urls.lua  lint:GLOBAL+CN 表完整性,以及 CN 指向 mcpp-res
-tests/check_package_name.lua lint:身份形态(name 为单一原子段,层级归 namespace)
-tests/list_cn_urls.lua       抽取 CN url,供 mirror-cn-reachable 使用
-README.md                    索引说明与贡献入口
-.github/workflows/validate.yml   CI:lint / mirror-cn-reachable / workspace(3 平台矩阵)
-.agents/docs/<date>-*.md     设计文档惯例
-docs/                        贡献者参考文档(本目录)
-tools/gtc                    gitcode CLI,见 cn-mirror.md
-tools/compat-ffmpeg/ 等      compat 大包的描述符再生成流水线
-.xpkgindex.json              站点配置(标题、链接、install 模板),通常无需改动
+  tests/*.cpp                behavioral assertions (standalone main; a non-zero exit code is a failure)
+tests/check_mirror_urls.lua  lint: GLOBAL+CN table completeness, and that CN points at mcpp-res
+tests/check_package_name.lua lint: identity shape (name is a single atomic segment, hierarchy belongs to namespace)
+tests/list_cn_urls.lua       extracts the CN urls for mirror-cn-reachable
+README.md                    index overview and contribution entry point (README.zh-CN.md is the Chinese version)
+.github/workflows/validate.yml   CI: lint / mirror-cn-reachable / workspace (a 3-platform matrix)
+.agents/docs/<date>-*.md     the design-document convention
+docs/                        contributor reference documentation (this directory; docs/zh/ holds the Chinese version)
+tools/gtc                    the gitcode CLI, see cn-mirror.md
+tools/compat-ffmpeg/ etc.    descriptor regeneration pipelines for the large compat packages
+.xpkgindex.json              site configuration (title, links, install template); rarely needs changing
 ```
 
-## 外部仓库与文档
+## External repositories and documentation
 
-- mcpp 本体:https://github.com/mcpp-community/mcpp(本地通常存在 clone:
-  `/home/speak/workspace/github/mcpp-community/mcpp`)。`mcpp --version` 应与 CI 对齐;feature 与 glob 行为以
-  `src/manifest.cppm`、`src/modgraph/scanner.cppm`、`src/build/prepare.cppm` 为准。
-- xpkg 扩展 schema(权威):
-  https://github.com/mcpp-community/mcpp/tree/main/docs/spec(对应本仓 `.xpkgindex.json` 的
-  “mcpp ext” 链接)。V1 xpkg spec 见 `d2learn/xim-pkgindex` 的 `docs/V1/xpackage-spec.md`(url-template 约在第 172 行)。
-- CN 镜像组织:gitcode `mcpp-res`。
+- mcpp itself: https://github.com/mcpp-community/mcpp (a local clone usually exists at
+  `/home/speak/workspace/github/mcpp-community/mcpp`). `mcpp --version` should match CI; `src/manifest.cppm`,
+  `src/modgraph/scanner.cppm` and `src/build/prepare.cppm` are authoritative for feature and glob behavior.
+- The xpkg extension schema (authoritative):
+  https://github.com/mcpp-community/mcpp/tree/main/docs/spec (the "mcpp ext" link in this
+  repository's `.xpkgindex.json`). For the V1 xpkg spec see `docs/V1/xpackage-spec.md` in `d2learn/xim-pkgindex`
+  (url-template is around line 172).
+- The CN mirror organization: gitcode `mcpp-res`.
 
-## 描述符 schema 速查(Form B inline)
+## Descriptor schema cheat-sheet (Form B inline)
 
-`package` 必填字段:`spec`、`namespace`、`name`、`description`、`licenses`、`repo`、`type="package"`、`xpm`、`mcpp`。
+Required `package` fields: `spec`, `namespace`, `name`, `description`, `licenses`, `repo`, `type="package"`, `xpm`,
+`mcpp`.
 
-### 包身份:`(namespace, name)`
+### Package identity: `(namespace, name)`
 
-身份是二元组 —— **`namespace` 是点分层级路径,`name` 是单一原子段**。层级一律放 `namespace`(mcpp SPEC-001 §3.2,见 mcpp 仓的 [`docs/spec/package-identity.md`](https://github.com/mcpp-community/mcpp/blob/main/docs/spec/package-identity.md)):
+Identity is a pair — **`namespace` is a dotted hierarchical path, `name` is a single atomic segment**. Hierarchy always
+goes in `namespace` (mcpp SPEC-001 §3.2, see
+[`docs/spec/package-identity.md`](https://github.com/mcpp-community/mcpp/blob/main/docs/spec/package-identity.md) in
+the mcpp repository):
 
 ```lua
 namespace = "compat",        name = "zlib"      -- ✅
-namespace = "mcpplibs.capi", name = "lua"       -- ✅ 多级命名空间
-namespace = "mcpplibs",      name = "capi.lua"  -- ❌ 短名仍带点
+namespace = "mcpplibs.capi", name = "lua"       -- ✅ multi-level namespace
+namespace = "mcpplibs",      name = "capi.lua"  -- ❌ the short name still carries a dot
 ```
 
-最后一种被拒绝而非重新解读:`name` 里多出的点描述的是一个**没人声明过的命名空间**。mcpp 曾按最后一个点切分、静默造出 `(mcpplibs.capi, lua)`,0.0.106 起改为拒绝。
+The last one is rejected rather than reinterpreted: the extra dot inside `name` describes a namespace **nobody ever
+declared**. mcpp used to split on the last dot and silently invent `(mcpplibs.capi, lua)`; since 0.0.106 it rejects.
 
-**兼容形态**:SPEC-001 之前发布的描述符把命名空间重复写在 `name` 里(`namespace="compat", name="compat.zlib"`),仍被接受 —— 前缀会先剥离再判定,wire key 是字面 `name`,两种写法都可安装。本仓已统一迁到短名形态。
+**The compatibility shape**: descriptors published before SPEC-001 repeat the namespace inside `name`
+(`namespace="compat", name="compat.zlib"`) and are still accepted — the prefix is stripped before the check, the wire
+key is the literal `name`, and both spellings install. This repository has been migrated wholesale to the short form.
 
-**同短名不同命名空间可共存**:本仓现有三对 —— `compat:imgui` 与默认命名空间的 `imgui`、`compat:ffmpeg` 与 `ffmpeg`、`compat:lua` 与 `mcpplibs.capi:lua`。需要 xlings ≥ 0.4.69([xlings#381](https://github.com/openxlings/xlings/issues/381));`(namespace, name)` 唯一即可,`name` 本身不必唯一。
+**The same short name can coexist across namespaces**: there are three such pairs here today — `compat:imgui` and the
+default namespace's `imgui`, `compat:ffmpeg` and `ffmpeg`, `compat:lua` and `mcpplibs.capi:lua`. This needs
+xlings >= 0.4.69 ([xlings#381](https://github.com/openxlings/xlings/issues/381)); `(namespace, name)` has to be
+unique, `name` alone does not.
 
-**文件名不参与解析**,可以任意。推荐 `<name>.lua` 或 `<namespace>.<name>.lua`(命中 mcpp 的快路径),但描述符按**声明的身份**被发现,叫别的名字也能解析。
+**File names play no part in resolution** and can be anything. `<name>.lua` or `<namespace>.<name>.lua` is recommended
+(it hits mcpp's fast path), but descriptors are discovered by the **identity they declare**, so another name still
+resolves.
 
-`xpm.<linux|macosx|windows>.<裸版本>`:
+`xpm.<linux|macosx|windows>.<bare version>`:
 
-- `url`:字符串,或 `{ GLOBAL=…, CN=… }` 表(本仓统一使用表形式)。
-- `sha256`:必填,等于实际下载字节的摘要。
+- `url`: a string, or a `{ GLOBAL=…, CN=… }` table (this repository uses the table form throughout).
+- `sha256`: required, and equal to the digest of the actual downloaded bytes.
 
-`mcpp`(常用键):
+`mcpp` (common keys):
 
-| 键 | 说明 |
+| Key | Description |
 |---|---|
-| `language` | 通常为 `"c++23"` |
-| `import_std` | 多数为 `false` |
-| `c_standard` | C 源码:`"c99"` 或 `"c11"` |
-| `modules` | module 库:`{ "x.y" }` |
-| `include_dirs` | glob 列表,暴露给消费者的头目录 |
-| `generated_files` | `{ ["相对路径"]="内容字符串" }`;mcpp ≥ 0.0.85 支持 Lua 长括号 `[==[…]==]` 多行字符串(推荐,可读可 review);转义单行串仍兼容 |
-| `scan_overrides` | `{ ["glob"]={ provides={…}, imports={…} } }`;声明式扫描结果,命中文件跳过 M1 文本扫描(适用于带条件 import 守卫的上游模块单元,如 fmt 的 src/fmt.cc);构建期由编译器 P1689 输出自动对账,声明错误响亮失败(mcpp ≥ 0.0.85)|
-| `sources` | glob 列表,编入 lib 的源码 |
-| `cflags` / `cxxflags` / `ldflags` | 追加至对应规则 |
+| `language` | usually `"c++23"` |
+| `import_std` | mostly `false` |
+| `c_standard` | for C sources: `"c99"` or `"c11"` |
+| `modules` | for module libraries: `{ "x.y" }` |
+| `include_dirs` | glob list; the header directories exposed to consumers |
+| `generated_files` | `{ ["relative/path"]="content string" }`; mcpp >= 0.0.85 supports Lua long-bracket `[==[…]==]` multi-line strings (recommended — readable and reviewable), and escaped single-line strings still work |
+| `scan_overrides` | `{ ["glob"]={ provides={…}, imports={…} } }`; declarative scan results — a matching file skips the M1 text scan (for upstream module units with conditional import guards, such as fmt's src/fmt.cc). Reconciled automatically against the compiler's P1689 output at build time, so a wrong declaration fails loudly (mcpp >= 0.0.85) |
+| `sources` | glob list; the sources compiled into the lib |
+| `cflags` / `cxxflags` / `ldflags` | appended to the corresponding rule |
 | `targets` | `{ ["name"]={ kind="lib"/"bin", main=…, soname=… } }` |
-| `features` | `{ ["f"]={ sources={…}, defines={…}, deps={…}, implies={…}, requires={…} } }`;`defines` 只作用于**包自身**的 TU,消费端若要按 feature 分支须自行声明(见 `tests/examples/openssl`、`openblas` 的 `[target.'cfg(…)'.build] cxxflags`) |
-| `deps` | `{ ["ns.name"]="ver" }`,扁平或点号式;feature 内同形 |
+| `features` | `{ ["f"]={ sources={…}, defines={…}, deps={…}, implies={…}, requires={…} } }`; `defines` applies only to the **package's own** TUs, so a consumer that wants to branch on a feature must declare it itself (see the `[target.'cfg(…)'.build] cxxflags` in `tests/examples/openssl` and `openblas`) |
+| `deps` | `{ ["ns.name"]="ver" }`, flat or dotted; the same shape inside a feature |
 
-## 索引重定向(`[indices]`)
+## Index redirection (`[indices]`)
 
-测试面要验证的是 **checkout 里的描述符**,而不是已发布的远程索引,这靠 `[indices]` 把命名空间重定向到本仓完成。
+What the test surface has to validate is **the descriptors in the checkout**, not the published remote index, and
+`[indices]` is what redirects a namespace into this repository to make that happen.
 
-**根级继承**:workspace 根的 `mcpp.toml` 声明 `[indices] compat = { path = "." }`,相对路径按 **workspace 根**解析(mcpp ≥ 0.0.97,[mcpp#224](https://github.com/mcpp-community/mcpp/issues/224)),成员直接继承,不必各写一份 `path = "../../.."`。
+**Root-level inheritance**: the workspace root's `mcpp.toml` declares `[indices] compat = { path = "." }`, whose
+relative path resolves against the **workspace root** (mcpp >= 0.0.97,
+[mcpp#224](https://github.com/mcpp-community/mcpp/issues/224)), and members inherit it directly instead of each
+writing their own `path = "../../.."`.
 
-**为什么只有一条,而且是 `compat`**:
+**Why there is only one, and why it is `compat`**:
 
-- 索引表**按命名空间取键**。声明在一个没有任何依赖会请求的名字下,该索引根本不会被注册,解析会静默回落到已发布的远程索引 —— 此时被测的根本不是这个 checkout。
-- 同一路径声明成多个命名空间确实都会注册,但会变成 N 个各自独立的项目 repo,之后任何查找都以 N 路歧义失败(物理上是同一个描述符;[mcpp#238](https://github.com/mcpp-community/mcpp/issues/238) / [xlings#374](https://github.com/openxlings/xlings/issues/374),在 xlings 0.4.69 后由静默 exit 1 变为响亮报错)。
+- The index table is **keyed by namespace**. Declared under a name no dependency ever requests, the index is simply
+  never registered, and resolution silently falls back to the published remote index — at which point what is under
+  test is not this checkout at all.
+- Declaring the same path under several namespaces does register all of them, but they become N independent project
+  repos, and any lookup afterwards fails with an N-way ambiguity (physically the same descriptor;
+  [mcpp#238](https://github.com/mcpp-community/mcpp/issues/238) /
+  [xlings#374](https://github.com/openxlings/xlings/issues/374) — a silent exit 1 before xlings 0.4.69, a loud error
+  since).
 
-所以根级只能承载一个命名空间,`compat` 是收益最大的那个(13 个成员 vs 其余合计 10 个)。
+So the root level can carry exactly one namespace, and `compat` is the one that buys the most (13 members against 10
+for everything else combined).
 
-**成员级覆盖**:消费其他命名空间的成员自己声明 `[indices]`,该表**替换**继承来的根级表而非与之合并 —— 这正是每个成员只保留一个项目索引 repo 的机制。
+**Member-level override**: a member consuming another namespace declares its own `[indices]`, and that table
+**replaces** the inherited root-level one rather than merging with it — which is precisely the mechanism that keeps
+one project index repo per member.
 
-**跨命名空间的取舍**:一个成员无法同时从本 checkout 解析两个命名空间。`tests/examples/asio-ssl` 有意利用了这一点:它不写成员级声明、继承根级 `compat`,于是 asio 本身走已发布的远程索引,而它的 `ssl` feature 依赖 `compat.openssl` 从本 checkout 解析 —— 这样**未合并的 compat 描述符可以通过一个已发布的消费者去验证**。反过来,本地 asio 描述符由 `tests/examples/asio-module` 覆盖。
+**The cross-namespace trade-off**: a single member cannot resolve two namespaces from this checkout. `tests/examples/asio-ssl`
+exploits that deliberately: it writes no member-level declaration and inherits the root `compat`, so asio itself comes
+from the published remote index while its `ssl` feature dependency `compat.openssl` resolves from this checkout —
+which means **an unmerged compat descriptor can be validated through an already-published consumer**. The local asio
+descriptor is covered the other way round, by `tests/examples/asio-module`.
 
-**裸名依赖不适用**:重定向按**请求侧**的命名空间取键,而裸写的 `eigen = "5.0.1"` 是以默认命名空间发出的请求,即使最终落到 `compat` 描述符上,也会从远程索引解析。因此各成员一律使用限定写法;裸名解析本身由 mcpp 上游的 e2e 165 覆盖。
+**Bare-name dependencies are out of scope**: the redirect is keyed by the **requesting** side's namespace, and a bare
+`eigen = "5.0.1"` is a request issued in the default namespace — so it resolves from the remote index even though it
+eventually lands on a `compat` descriptor. Members therefore always use the qualified spelling; bare-name resolution
+itself is covered by upstream mcpp's e2e 165.
 
-## index 版本契约(index.toml)
+## The index version contract (index.toml)
 
-仓库根的 `index.toml` 声明 `[index] min_mcpp` —— 能解析本索引全部描述符的最老
-mcpp 版本。契约随树旅行:`publish_mcpp_index.sh` 把它打进 artifact,git clone 与
-`[indices] path =` 本地索引天然携带。mcpp ≥ 0.0.85 在打开索引树时检查,违反时报
-`E0006` + 升级指引(调试逃生口 `MCPP_INDEX_FLOOR=ignore`)。
+`index.toml` at the repository root declares `[index] min_mcpp` — the oldest mcpp version able to resolve every
+descriptor in this index. The contract travels with the tree: `publish_mcpp_index.sh` packs it into the artifact, and
+a git clone or an `[indices] path =` local index carries it naturally. mcpp >= 0.0.85 checks it when opening an index
+tree and reports `E0006` plus upgrade guidance on a violation (with `MCPP_INDEX_FLOOR=ignore` as a debugging escape
+hatch).
 
-规则(由 lint 机械强制,非纪律):**floor 先行、新文法在后**——lint 用 CI pin 的
-mcpp 跑 `xpkg parse`(strict:未知键即失败),所以需要更新文法/键的描述符在
-`MCPP_VERSION` 与 `min_mcpp` 同步提升之前物理上合不进 main。本地复现:
-`mcpp xpkg parse pkgs/<x>/<name>.lua`。
+The rule (mechanically enforced by lint, not by discipline): **floor first, new grammar after** — lint runs
+`xpkg parse` with the mcpp version CI pins (strict: an unknown key fails), so a descriptor that needs newer
+grammar/keys physically cannot land on main before `MCPP_VERSION` and `min_mcpp` are raised in lock-step. Reproduce
+locally with `mcpp xpkg parse pkgs/<x>/<name>.lua`.
 
-## CI 行为(validate.yml)
+## CI behavior (validate.yml)
 
-- 触发条件:PR(改动 `pkgs/**/*.lua`、`tests/**`、`README.md` 或本 workflow)、push 至 main、nightly cron、手动触发。
-- `env.MCPP_VERSION` 为全部 job 使用的 mcpp 版本,本地验证应与之对齐。
-- `lint`(始终运行):lua 语法 `loadfile(f,'t')`;须含 `spec=`/`name=`/`xpm=`;禁止前导 v 版本;执行
-  `check_mirror_urls.lua`;执行 `check_package_name.lua`(身份形态,见上文「包身份」);再用 CI pin 的
-  mcpp 对每个描述符跑 `mcpp xpkg parse`(strict,未知键即失败)。mcpp ≥ 0.0.106 的 `xpkg parse` 自身
-  也强制身份形态,lua lint 因此是更早、更便宜的冗余闸门。
-- `mirror-cn-reachable`(始终运行):逐个 `curl` CN url,均须返回 200。
-- `workspace (linux|macos|windows)`:整个测试面就是一个 mcpp workspace,**唯一的构建/运行通道**——
-  没有任何 shell 驱动的例外(公开模块包 imgui/ffmpeg/opencv/tinyhttps 也是普通成员,经成员级
-  `[indices] default = { path = "../../.." }` 从 checkout 解析,mcpp ≥ 0.0.97;消费 `compat` 的
-  成员则继承根级声明,见上文「索引重定向」)。
-  - 选择性成员测试:PR 时由 `git diff` 将改动文件映射到受影响成员
-    (`pkgs/<x>/<lib>.lua` → mcpp.toml 引用 `<lib>` 的成员;`tests/examples/<m>/**` → 成员 `<m>`),
-    仅 `mcpp test -p <member>` 这些成员;workflow 本身、workspace 清单非成员部分、`tools/` 等
-    全局性改动 → `mcpp test --workspace` 全量。push/nightly/dispatch 恒为全量。
-  - `~/.mcpp/registry` 缓存携带工具链与已构建的 compat 包,重复运行增量很快。
+- Triggers: a PR (touching `pkgs/**/*.lua`, `tests/**`, either README, `mcpp.toml`, `index.toml` or this workflow),
+  a push to main, the nightly cron, and manual dispatch.
+- `env.MCPP_VERSION` is the mcpp version every job uses; local verification should match it.
+- `lint` (always runs): lua syntax via `loadfile(f,'t')`; `spec=`/`name=`/`xpm=` must be present; leading-v versions
+  are rejected; runs `check_mirror_urls.lua`; runs `check_package_name.lua` (identity shape, see "Package identity"
+  above); then runs `mcpp xpkg parse` over every descriptor with the mcpp version CI pins (strict — an unknown key
+  fails). `xpkg parse` in mcpp >= 0.0.106 enforces the identity shape itself, which makes the lua lint an earlier and
+  cheaper redundant gate.
+- `mirror-cn-reachable` (always runs): `curl`s each CN url; all must return 200.
+- `workspace (linux|macos|windows)`: the whole test surface is one mcpp workspace and the **only build/run channel** —
+  there is no shell-driven exception (the public module packages imgui/ffmpeg/opencv/tinyhttps are ordinary members
+  too, resolving from the checkout through a member-level `[indices] default = { path = "../../.." }`,
+  mcpp >= 0.0.97; members consuming `compat` inherit the root-level declaration, see "Index redirection" above).
+  - Selective member testing: on a PR, `git diff` maps changed files to the affected members
+    (`pkgs/<x>/<lib>.lua` → members whose mcpp.toml references `<lib>`; `tests/examples/<m>/**` → member `<m>`), and
+    only those run through `mcpp test -p <member>`; global changes — the workflow itself, the non-member part of the
+    workspace manifest, `tools/` and so on — go to a full `mcpp test --workspace`. push/nightly/dispatch are always
+    full runs.
+  - The `~/.mcpp/registry` cache carries the toolchains and the already-built compat packages, so a repeat run is
+    incremental and fast. Its key is computed once, in a step of its own, from `git ls-files -s` over the tracked
+    inputs — never with `hashFiles()`, which globs the working tree and would re-hash the multi-GB build output under
+    `tests/examples/*/target` when actions/cache re-evaluates the key in its post (save) step (that blew past the
+    runner's 120s template-evaluation cap on windows).
 
-## 本地 lint 复现(等价于 CI lint job)
+## Reproducing lint locally (equivalent to the CI lint job)
 
 ```bash
 fail=0
@@ -143,18 +187,18 @@ done
 [ $fail -eq 0 ] && echo "ALL LINT PASS"
 ```
 
-## 合并后
+## After the merge
 
-`publish-artifact.yml` 在合并至 `main` 后自动重新发布 mcpp-index artifact 并移动指针,无需发布新的 mcpp 版本。
-在线浏览地址:https://mcpplibs.github.io/mcpp-index/
+`publish-artifact.yml` republishes the mcpp-index artifact and moves the pointer automatically once the change lands
+on `main` — no new mcpp release required. Browse online at: https://mcpplibs.github.io/mcpp-index/
 
-## 案例索引
+## Case index
 
-| 形态 | 描述符 | example | 设计文档 / PR |
+| Shape | Descriptor | example | Design doc / PR |
 |---|---|---|---|
-| C 源码 + feature | `pkgs/c/compat.cjson.lua`、`compat.gtest.lua` | `tests/examples/cjson/` | `.agents/docs/2026-06-27-add-cjson-and-nlohmann-json-plan.md` / #48 |
-| C++23 module(generated wrapper) | `pkgs/n/nlohmann.json.lua` | `tests/examples/nlohmann.json/` | 同上 / #48 |
+| C source + feature | `pkgs/c/compat.cjson.lua`, `compat.gtest.lua` | `tests/examples/cjson/` | `.agents/docs/2026-06-27-add-cjson-and-nlohmann-json-plan.md` / #48 |
+| C++23 module (generated wrapper) | `pkgs/n/nlohmann.json.lua` | `tests/examples/nlohmann.json/` | same as above / #48 |
 | header-only + source-gated feature | `pkgs/c/compat.eigen.lua` | `tests/examples/eigen/` | `.agents/docs/2026-06-28-add-eigen-plan.md` / #50 |
-| header-only(纯头) | `pkgs/c/compat.opengl.lua`、`compat.khrplatform.lua` | — | `.agents/docs/2026-06-03-gl-runtime-packages-plan.md` |
-| 外部构建系统(`install()` 驱动) | `pkgs/c/compat.openblas.lua`(Make)、`compat.openssl.lua`(Perl Configure + Make) | `tests/examples/openblas/`、`openssl/` | `docs/superpowers/specs/2026-07-26-openssl-asio-tls-design.md` / #124 |
-| feature 拉起依赖(跨包) | `pkgs/c/chriskohlhoff.asio.lua` 的 `ssl` feature → `compat.openssl` | `tests/examples/asio-ssl/` | 同上 |
+| header-only (pure headers) | `pkgs/c/compat.opengl.lua`, `compat.khrplatform.lua` | — | `.agents/docs/2026-06-03-gl-runtime-packages-plan.md` |
+| External build system (`install()`-driven) | `pkgs/c/compat.openblas.lua` (Make), `compat.openssl.lua` (Perl Configure + Make) | `tests/examples/openblas/`, `openssl/` | `docs/superpowers/specs/2026-07-26-openssl-asio-tls-design.md` / #124 |
+| A feature pulling in a dependency (cross-package) | the `ssl` feature of `pkgs/c/chriskohlhoff.asio.lua` → `compat.openssl` | `tests/examples/asio-ssl/` | same as above |
