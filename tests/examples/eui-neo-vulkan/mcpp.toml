@@ -1,0 +1,12 @@
+[package]
+name = "eui-neo-vulkan-tests"
+version = "0.1.0"
+
+# `vulkan` REPLACES the default OpenGL backend rather than adding to it: the
+# package resolves the exclusive choice in its own preprocessor from the
+# MCPP_FEATURE_* flags. The window backend stays GLFW, unnamed.
+[dependencies.compat]
+eui-neo = { version = "0.5.3", features = ["vulkan"] }
+
+[build]
+cxxflags = ["-DHAVE_EUI_VULKAN=1"]

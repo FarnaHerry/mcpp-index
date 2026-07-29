@@ -1,0 +1,10 @@
+[package]
+name = "curl-tests"
+version = "0.1.0"
+
+# Deliberately NO -DCURL_STATICLIB here: compat.curl publishes it itself, via a
+# `default` feature that implies one carrying the define. If that ever stops
+# working, <curl/curl.h> reverts to dllimport declarations and the Windows link
+# fails — which is the point of not spelling it out on this side.
+[dependencies.compat]
+curl = "8.21.0"

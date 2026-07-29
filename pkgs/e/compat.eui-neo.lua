@@ -1,0 +1,347 @@
+-- compat.eui-neo — EUI-NEO, a declarative retained-mode C++17 UI framework.
+--
+-- Header-compat shape (Form B, `import_std = false`): the ~20 core TUs are
+-- compiled into one lib and the public headers are exposed through
+-- `include_dirs`, so a consumer writes `#include <eui_neo.h>`. The C++23
+-- module surface (`import eui;`) is deliberately NOT modelled here — upstream
+-- ships no module interface units, and wrapping 40+ component headers is a
+-- separate piece of work.
+--
+-- Upstream vendors its third-party libraries under `3rd/` (freetype, glfw,
+-- libpng, zlib, glad, tray, yyjson, md4c). NONE of those are built here: each
+-- one already exists in this index as its own `compat.*` package at the same
+-- upstream version, and building them once for the whole ecosystem is the
+-- point of having them. `3rd/` is still on the include path because three
+-- genuinely vendored single-file headers live at its root (stb_image,
+-- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
+--
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.3): CORE_SOURCES
+-- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
+--
+-- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
+-- the GitHub tarball's `EUI-NEO-0.5.3/` wrap layer.
+package = {
+    spec        = "1",
+    namespace   = "compat",
+    name        = "eui-neo",
+    description = "EUI-NEO — declarative retained-mode C++17 UI framework (GLFW + OpenGL)",
+    licenses    = {"Apache-2.0"},
+    repo        = "https://github.com/sudoevolve/EUI-NEO",
+    type        = "package",
+
+    xpm = {
+        linux = {
+            ["0.5.3"] = {
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
+                sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
+            },
+        },
+        macosx = {
+            ["0.5.3"] = {
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
+                sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
+            },
+        },
+        windows = {
+            ["0.5.3"] = {
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
+                sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
+            },
+        },
+    },
+
+    mcpp = {
+        language   = "c++23",
+        import_std = false,
+        c_standard = "c99",
+
+        -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
+        -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
+        -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
+        include_dirs = { "*/include", "*", "mcpp_generated" },
+
+        -- mcpp#233/#240: every package in a link emits its objects into ONE
+        -- flat obj/ dir keyed by source basename. Upstream's
+        -- `core/platform/platform.cpp` and `compat.glfw`'s `src/platform.c`
+        -- both want `platform.o`, and the collision drops BOTH — verified on a
+        -- cold 646-object link where neither `core::platform::` nor
+        -- `_glfwSelectPlatform` reached the binary. Nothing in the minimal test
+        -- referenced them, so it linked green anyway; a real application would
+        -- not. Route the TU through a uniquely named stub, the same technique
+        -- `compat.opencv5` uses for its `modules/*/src` collisions. Renaming
+        -- only this side is enough: with `platform.o` no longer contested,
+        -- glfw's own object survives too.
+        generated_files = {
+            -- Resolves the two exclusive backend choices from the feature flags
+            -- mcpp hands us. Force-included into every TU of this package via
+            -- the `cflags` below, so it runs before any upstream header looks
+            -- at EUI_RENDER_BACKEND_* / EUI_WINDOW_BACKEND_SDL2.
+            ["mcpp_generated/mcpp_eui_backends.h"] = [==[
+/* Backend selection for compat.eui-neo — see the descriptor's note. */
+#pragma once
+
+/* Render backend: vulkan when asked for, OpenGL otherwise. Exactly one. */
+#if defined(MCPP_FEATURE_VULKAN)
+#  define EUI_RENDER_BACKEND_VULKAN 1
+#else
+#  define EUI_RENDER_BACKEND_OPENGL 1
+#endif
+
+/* Window backend: SDL2 when asked for, GLFW otherwise (GLFW is the absence of
+ * the SDL2 define, which is how upstream spells it too). */
+#if defined(MCPP_FEATURE_SDL2)
+#  define EUI_WINDOW_BACKEND_SDL2 1
+#endif
+]==],
+            ["mcpp_generated/eui_neo_platform_tu.cpp"] = [==[
+/* Uniquely named forwarding TU — see the mcpp#233 note in the descriptor. */
+#include "core/platform/platform.cpp"
+]==],
+        },
+
+        -- CMake CORE_SOURCES + the OpenGL render backend + glfw's ime_bridge.
+        sources = {
+            -- Platform layer
+            "*/core/platform/async.cpp",
+            -- ime_bridge.c is glfw-specific and rides with the glfw feature.
+            "*/core/platform/json.cpp",
+            "*/core/platform/native_bridge.c",
+            "*/core/platform/network.cpp",
+            "*/core/platform/performance_stats.cpp",
+            -- core/platform/platform.cpp enters through the generated stub above.
+            "mcpp_generated/eui_neo_platform_tu.cpp",
+            "*/core/platform/tray_bridge.c",
+            -- Render layer (backend-agnostic)
+            "*/core/render/image.cpp",
+            "*/core/render/image_facade.cpp",
+            "*/core/render/image_source.cpp",
+            "*/core/render/primitive.cpp",
+            "*/core/render/render_backend.cpp",
+            "*/core/render/stb_image_impl.cpp",
+            "*/core/render/text.cpp",
+            -- OpenGL backend and the GLFW IME bridge are UNCONDITIONAL sources.
+            -- Which of them the preprocessor keeps is decided by the generated
+            -- backend header below, not by whether they were compiled.
+            "*/core/render/opengl/opengl_backend.cpp",
+            "*/core/render/opengl/opengl_image.cpp",
+            "*/core/render/opengl/opengl_primitives.cpp",
+            "*/core/render/opengl/opengl_text.cpp",
+            "*/core/platform/ime_bridge.c",
+            -- Window layer
+            "*/core/window/window_backend.cpp",
+        },
+
+        targets = { ["eui-neo"] = { kind = "lib" } },
+
+        -- Every entry replaces a directory upstream vendors under `3rd/`, at the
+        -- same version upstream pins:
+        --   freetype 2.13.3, libpng 1.6.43, zlib (3rd/zlib-1.3.1), glfw 3.4,
+        --   glad 651a425 (the exact commit 3rd/dependencies.cmake fetches),
+        --   yyjson 0.12.0, tray 8dd1358.
+        -- `tray` is a dep on all three platforms for uniformity even though
+        -- `tray_bridge.c` only reaches `tray.h` under EUI_TRAY_WINAPI (see below).
+        deps = {
+            ["compat.freetype"] = "2.13.3",
+            ["compat.libpng"]   = "1.6.43",
+            ["compat.zlib"]     = "1.3.2",
+            ["compat.yyjson"]   = "0.12.0",
+            -- The DEFAULT backends' packages live in the base dep set, not in
+            -- the `default` feature: mcpp applies a default feature's `defines`
+            -- and `sources` but IGNORES its `deps` (verified — a default member
+            -- resolved only freetype/libpng/tray/yyjson and then failed on
+            -- <GLFW/glfw3.h>). Non-default features' `deps` do work, which is
+            -- why `vulkan` and `sdl2` can carry theirs.
+            --
+            -- Consequence: a consumer picking `vulkan` or `sdl2` still builds
+            -- these. They are cheap — compat.opengl is header-only plus an
+            -- anchor, compat.glad is one TU — and correctness beats saving
+            -- compat.glfw's 23 TUs.
+            ["compat.opengl"]   = "2026.05.31",
+            ["compat.glad"]     = "0.0.0-651a425",
+            ["compat.glfw"]     = "3.4",
+            ["compat.tray"]     = "0.0.0-8dd1358",
+        },
+
+        -- ── Backend selection ──────────────────────────────────────────────
+        --
+        -- The render and window backends are mutually exclusive build-time
+        -- choices: core/render/render_backend.cpp is
+        -- `#if defined(EUI_RENDER_BACKEND_OPENGL) … #elif defined(…VULKAN)`,
+        -- and core/window/window_backend.cpp is `#if EUI_WINDOW_BACKEND_SDL2`
+        -- / else-GLFW. Define both halves of either pair and the first one
+        -- silently wins, ignoring what the consumer asked for.
+        --
+        -- mcpp features are purely additive and there is no
+        -- `default-features = false` (mcpp#242). The obvious encodings all
+        -- fail on 0.0.109, each in its own way — all three verified with
+        -- probes, because each failure is silent:
+        --
+        --   * `default = { defines/sources/deps = … }` is INERT. Not
+        --     "suppressed when features are named" — never applied at all. A
+        --     member depending on the package plainly built with no render
+        --     backend and still passed its smoke test, because nothing in the
+        --     test reached one.
+        --   * `default = { implies = { … } }` is the opposite: ALWAYS applied,
+        --     including when the consumer names a different feature. Routed
+        --     this way, asking for `vulkan` keeps OpenGL enabled too.
+        --   * a plain package-level define cannot be turned off by a feature,
+        --     since features only add.
+        --
+        -- What does work is that mcpp passes `-DMCPP_FEATURE_<NAME>` for every
+        -- enabled feature, to the package's own translation units. So the
+        -- exclusivity is resolved in the preprocessor, by a force-included
+        -- header, and the features themselves only need to carry sources and
+        -- dependencies. Consumers get the same answer through the features'
+        -- interface `defines`.
+        --
+        --   eui-neo = "0.5.3"                                -> opengl + glfw
+        --   eui-neo = { …, features = ["vulkan"] }           -> vulkan + glfw
+        --   eui-neo = { …, features = ["sdl2"] }             -> opengl + SDL2
+        --   eui-neo = { …, features = ["vulkan", "sdl2"] }   -> vulkan + SDL2
+        --   eui-neo = { …, features = ["markdown"] }         -> opengl + glfw
+        --
+        -- Note the last line: unlike an encoding built on `default`, naming an
+        -- unrelated feature no longer silently drops the backends.
+        -- BOTH lists, and that is not redundant: mcpp routes `cflags` to C
+        -- translation units and `cxxflags` to C++ ones. A define placed only in
+        -- `cflags` reaches ime_bridge.c / native_bridge.c / tray_bridge.c and
+        -- NOTHING else — which is exactly how an earlier revision of this
+        -- descriptor shipped `-DEUI_RENDER_BACKEND_OPENGL=1` that
+        -- render_backend.cpp never saw, leaving createRenderBackend() on its
+        -- `#else` branch returning a null backend. Verified by symbol
+        -- inspection, since it links and runs cleanly either way.
+        cflags   = { "-include", "mcpp_eui_backends.h" },
+        cxxflags = { "-include", "mcpp_eui_backends.h" },
+
+        features = {
+            ["vulkan"] = {
+                defines = { "EUI_RENDER_BACKEND_VULKAN=1" },
+                sources = {
+                    "*/core/render/vulkan/vulkan_backend.cpp",
+                    "*/core/render/vulkan/vulkan_cache.cpp",
+                    "*/core/render/vulkan/vulkan_image.cpp",
+                    "*/core/render/vulkan/vulkan_polygon.cpp",
+                    "*/core/render/vulkan/vulkan_primitives.cpp",
+                    "*/core/render/vulkan/vulkan_text.cpp",
+                },
+                deps = { ["compat.vulkan"] = "1.4.357.0" },
+            },
+            -- ── Window backend ────────────────────────────────────────────
+            -- Exclusive in the same way and for the same reason as the render
+            -- backend: core/window/window_backend.cpp is
+            -- `#if defined(EUI_WINDOW_BACKEND_SDL2)` / else-GLFW, and
+            -- ime_bridge.c is GLFW-only (upstream adds it to CORE_SOURCES only
+            -- when EUI_WINDOW_BACKEND is glfw).
+
+            ["sdl2"] = {
+                -- The define is for the CONSUMER's translation units; this
+                -- package's own get it from mcpp_eui_backends.h.
+                defines = { "EUI_WINDOW_BACKEND_SDL2=1" },
+                deps    = { ["compat.sdl2"] = "2.32.10" },
+            },
+
+            -- ── Optional capabilities ─────────────────────────────────────
+
+            -- core/platform/network.cpp is already in the base source list and
+            -- compiles to stubs without this define, so the feature costs a
+            -- dependency and a define rather than a translation unit.
+            ["network"] = {
+                defines = { "EUI_HAS_CURL=1" },
+                deps    = { ["compat.curl"] = "8.21.0" },
+            },
+
+            -- Upstream's GLFW entry point, which owns `int main()` and drives
+            -- the render loop. CMake adds it per-APP (EUI_APP_MAIN_SOURCE), not
+            -- to the lib, so it is opt-in here for the same reason
+            -- `compat.gtest`'s `main` feature is: a consumer that has its own
+            -- main() must not get a second one. A real EUI application enables
+            -- this and supplies only app::dslAppConfig() + app::compose().
+            ["app-main"] = { sources = { "*/core/app/glfw_app_main.cpp" } },
+            -- Same gate for the SDL2 window backend. Upstream picks between the
+            -- two by EUI_APP_MAIN_SOURCE; here the consumer picks by name, and
+            -- must pick the one matching its window backend.
+            ["app-main-sdl2"] = { sources = { "*/core/app/sdl2_app_main.cpp" } },
+            -- `components/markdown.h` is header-only and guards its body on
+            -- EUI_HAS_MD4C, so markdown lives entirely on the CONSUMER side —
+            -- the lib itself gains no translation unit from it. That is why
+            -- the define goes in `defines` (an INTERFACE define, propagated to
+            -- the consumer's TUs) rather than `cflags` (package-private):
+            -- without it reaching the consumer, md4c would link but the
+            -- component would still compile out.
+            ["markdown"] = {
+                defines = { "EUI_HAS_MD4C=1" },
+                deps    = { ["compat.md4c"] = "0.5.3" },
+            },
+        },
+
+        -- ── Platform-specific ──────────────────────────────────────────────
+
+        windows = {
+            -- Upstream: EUI_TRAY_WINAPI + NOMINMAX, winmm/urlmon/shell32/
+            -- user32/imm32/pdh. ole32 comes with urlmon's COM entry points.
+            -- NOMINMAX is needed by the C++ TUs too (windows.h reaches them
+            -- through eui_neo.h), hence both lists; EUI_TRAY_WINAPI only gates
+            -- tray_bridge.c, but keeping the pair symmetrical is cheaper than
+            -- re-deriving which is which.
+            cflags  = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX" },
+            -- Upstream builds at CMAKE_CXX_STANDARD 17; this index's floor is
+            -- c++23, and one Windows-only line does not survive the move:
+            -- `parseWindowsSelection()` in core/platform/platform.cpp pushes
+            -- `path::u8string()` into a std::vector<std::string>, and C++20
+            -- changed that return type to std::u8string.
+            --
+            -- The root cause is char8_t, not the standard level, so turn off
+            -- exactly that: every STL's <filesystem> selects the u8string()
+            -- return type on `__cpp_char8_t`, which -fno-char8_t undefines.
+            -- The rest of the package stays at c++23 on every platform.
+            --
+            -- Linux and macOS never see this — the code is inside
+            -- `#if defined(_WIN32)`. Worth fixing upstream (`wideToUtf8()`
+            -- already sits eight lines above and does the right thing); until
+            -- then this keeps us on a real upstream release tag rather than a
+            -- fork carrying the patch.
+            cxxflags = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-fno-char8_t" },
+            -- Upstream lists winmm/urlmon/shell32/user32/imm32/pdh and stops
+            -- there, because CMake's MSVC default `CMAKE_C_STANDARD_LIBRARIES`
+            -- already drags in kernel32/user32/gdi32/shell32/ole32/comdlg32/…
+            -- mcpp links only what the descriptor names, so the ones
+            -- platform.cpp actually reaches have to be spelled out:
+            -- comdlg32 for GetOpenFileNameW + CommDlgExtendedError, ole32 for
+            -- urlmon's COM entry points. (Pdh*, Imm*, timeBeginPeriod,
+            -- URLDownloadToFileA and ShellExecuteA are covered by the upstream
+            -- list.) Like the char8_t break above, this only showed up once the
+            -- mcpp#233 collision stopped dropping the TU.
+            ldflags = {
+                "-lwinmm", "-lurlmon", "-lshell32",
+                "-luser32", "-limm32", "-lpdh", "-lole32",
+                "-lcomdlg32",
+            },
+        },
+
+        macosx = {
+            -- Upstream `enable_language(OBJC)` + LANGUAGE OBJC on the three
+            -- bridge files; the AppKit tray path is Cocoa-native and never
+            -- includes tray.h.
+            cflags   = { "-DEUI_TRAY_APPKIT=1" },
+            ldflags  = { "-framework", "Cocoa", "-lobjc" },
+            flags = {
+                { glob = "*/core/platform/native_bridge.c", cflags = { "-x", "objective-c" } },
+                { glob = "*/core/platform/tray_bridge.c",   cflags = { "-x", "objective-c" } },
+                { glob = "*/core/platform/ime_bridge.c",    cflags = { "-x", "objective-c" } },
+            },
+        },
+
+        linux = {
+            -- No tray define on purpose. Upstream only sets
+            -- EUI_TRAY_APPINDICATOR when pkg-config finds GTK3 AND
+            -- libappindicator; this index has neither, so tray_bridge.c
+            -- compiles its EUI_TRAY_HAS_BACKEND=0 stub — which is exactly
+            -- what upstream does on a machine without those dev packages.
+            -- `-ldl` is glad's CMAKE_DL_LIBS.
+            ldflags = { "-lpthread", "-ldl" },
+        },
+    },
+}

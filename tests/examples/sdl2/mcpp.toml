@@ -1,0 +1,6 @@
+[package]
+name = "sdl2-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+sdl2 = "2.32.10"
