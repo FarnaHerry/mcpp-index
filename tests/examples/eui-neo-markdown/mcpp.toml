@@ -1,0 +1,10 @@
+[package]
+name = "eui-neo-markdown-tests"
+version = "0.1.0"
+
+# Long-form declaration so the `markdown` feature is requested. It pulls
+# compat.md4c and publishes EUI_HAS_MD4C=1 as an interface define, which is
+# what switches components/markdown.h from its fallback to the real parser.
+
+[dependencies.compat]
+eui-neo = { version = "0.5.3", features = ["markdown"] }
