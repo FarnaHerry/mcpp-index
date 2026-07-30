@@ -186,6 +186,11 @@ translation unit actually references:
 
 The last row is the one that catches a `default`-based regression.
 
+> Superseded in part by `.agents/docs/2026-07-30-eui-neo-window-and-app-main-members.md`:
+> every member above is headless, so the backends were verified by symbol reference
+> rather than by rendering. `eui-neo-window` and `eui-neo-app-main` now assert
+> `rectDraws`/`textDraws` from a real frame under `MCPP_RUN_WINDOW=1`.
+
 ## Features
 
 | feature | gates | default |
@@ -202,6 +207,12 @@ The last row is the one that catches a `default`-based regression.
 the library, for the same reason it is opt-in here: a consumer with its own `main()` must
 not be handed a second one. A real EUI application enables it and supplies only
 `app::dslAppConfig()` and `app::compose()`.
+
+> Sharpened later: mcpp links a dependency's objects *eagerly*, so `glfw_app_main.o` is
+> always in the link rather than only when `main` is undefined. An `app-main` project may
+> therefore contain no `main()` of its own **at all** — including every `mcpp test` TU.
+> `tests/examples/eui-neo-app-main` is built around that constraint; see
+> `.agents/docs/2026-07-30-eui-neo-window-and-app-main-members.md`.
 
 **`markdown`** is the more interesting one. `components/markdown.h` is header-only and
 compiles one of *two* definitions of `detail::parseMarkdownBlocks` depending on

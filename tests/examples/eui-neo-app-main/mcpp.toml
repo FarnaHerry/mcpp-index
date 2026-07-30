@@ -1,0 +1,33 @@
+# compat.eui-neo, `app-main` FEATURE path: the package supplies `int main()`
+# (upstream core/app/glfw_app_main.cpp) and this project deliberately defines
+# none. If the feature stops contributing that source, this member fails to link
+# with `undefined reference to 'main'` — the same assertion shape as
+# tests/examples/catch2-main.
+#
+# This cannot share a project with tests/examples/eui-neo: features are resolved
+# per consuming project, and — because mcpp links a dependency's objects
+# EAGERLY rather than as lazily-selected archive members — a project that
+# enables `app-main` may not contain any translation unit of its own that
+# defines main(). See the note in pkgs/e/compat.eui-neo.lua.
+#
+# ALL THREE PLATFORMS, deliberately not cfg-gated. `app-main` selects upstream's
+# GLFW entry point, which is the default window backend on every platform, and
+# nothing in it is linux-specific — but until this member existed it was compiled
+# on NONE of them, so the windows `-fno-char8_t` / winmm+user32+pdh half of the
+# descriptor and the macOS Cocoa link were both unexercised for that TU.
+#
+# compat.glfw is NOT re-declared here even though this TU calls
+# glfwSetWindowShouldClose()/glfwGetCurrentContext() itself to bound the opt-in
+# window run: mcpp propagates a transitive dependency's `include_dirs` and link
+# inputs to the consumer, and compat.eui-neo already depends on compat.glfw on
+# every platform. Same convention as tests/examples/eui-neo-sdl2 and
+# eui-neo-vulkan, which include <SDL.h> / <vulkan/vulkan.h> without re-declaring
+# either.
+#
+# The `compat` index redirect is inherited from the workspace root.
+[package]
+name = "eui-neo-app-main-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+eui-neo = { version = "0.5.3", features = ["app-main"] }

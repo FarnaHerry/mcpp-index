@@ -1,0 +1,37 @@
+# compat.eui-neo driven by a HAND-WRITTEN main() — `app-main` deliberately NOT
+# enabled, so the package contributes no entry point and this project owns the
+# window, the render backend and the loop.
+#
+# The pair matters: tests/examples/eui-neo-app-main asserts the framework-main
+# shape, this member asserts the own-main shape. Nothing else in this index
+# builds an eui-neo WINDOW at all — tests/examples/eui-neo is headless by
+# construction (json + platform flags), so window creation, the OpenGL backend,
+# the text/freetype path and the render loop were previously uncovered.
+#
+# ALL THREE PLATFORMS, deliberately not cfg-gated. Unlike tests/examples/
+# imgui-window and gui-stack — linux-only because they pull the X11 packages
+# directly — compat.eui-neo and compat.glfw both build on linux/macosx/windows,
+# and the four existing eui-neo members already prove that on every runner. What
+# was never compiled anywhere is a CONSUMER translation unit that includes
+# core/window, core/render and <GLFW/glfw3.h>, which is exactly what this member
+# is. None of the headers it reaches carry platform-specific includes.
+#
+# The window run needs a display and is opt-in (MCPP_RUN_WINDOW=1); headless CI
+# compiles + links the whole loop on each OS and returns 0.
+#
+# compat.glfw is NOT re-declared here even though this TU calls glfwPollEvents()
+# and glfwWindowShouldClose() itself (EUI's core::window facade exposes no
+# event-pump entry point). mcpp propagates a transitive dependency's
+# `include_dirs` and link inputs to the consumer, so the edge through
+# compat.eui-neo is enough — verified by dropping the line and rebuilding. Same
+# convention as tests/examples/eui-neo-sdl2 (`#include <SDL.h>`, `<curl/curl.h>`)
+# and eui-neo-vulkan (`vkEnumerateInstanceVersion`), neither of which re-declares
+# what it reaches through a feature.
+#
+# The `compat` index redirect is inherited from the workspace root.
+[package]
+name = "eui-neo-window-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+eui-neo = "0.5.3"
