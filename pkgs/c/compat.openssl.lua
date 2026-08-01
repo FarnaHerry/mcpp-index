@@ -13,14 +13,26 @@
 -- toolchain needs spelled out (macOS SDK, ranlib) has to be handed to it
 -- explicitly; see cc_override() and the install_sw step.
 --
--- HOST REQUIREMENT — perl. `./config` IS a Perl script, and there is no
--- `xim:perl` to declare as a build dep, so this is the one thing the package
--- cannot bring itself. CI runners and every mainstream distro ship it; a
--- stripped container may not. install() probes for it up front and fails with
--- that sentence rather than letting `./config` die with a shell error nobody
--- can read. (This is also why mbun's OpenSSL package chose a vendored prebuilt
--- over a source build; here a source build is the only option that covers both
--- linux and macOS.)
+-- PERL. `./config` execs `Configure`, which is `#!/usr/bin/env perl` and opens
+-- with `use Config; use FindBin;`. So what this build needs is not "a perl
+-- binary on PATH" but "a perl whose CORE MODULES are present" — and those are
+-- different things on a distro that splits perl into sub-packages or in a
+-- trimmed container image. Probing with `command -v perl` accepts such a host
+-- and the build then dies fifteen lines into Configure with
+-- `Can't locate FindBin.pm in @INC`, which reads like an OpenSSL problem
+-- (#140).
+--
+-- Two changes follow from that. The package now DECLARES `xim:perl@latest` as
+-- a build dep on both platforms and puts that perl's bindir at the front of
+-- PATH for the build, so it brings its own known-complete interpreter instead
+-- of auditing the host's. And the probe now RUNS perl with the modules
+-- Configure needs rather than looking it up, so a host perl reached through
+-- the fallback path is checked for the property that actually matters.
+--
+-- (xim:perl ships linux x86_64/aarch64 as fully static musl builds and
+-- macosx x86_64/arm64 as relocatable-perl. Unlike xim:make it HAS a macosx
+-- entry, so declaring it there resolves — see the macosx block below for what
+-- goes wrong when it doesn't.)
 --
 -- Platforms:
 --   * linux/macosx — build a fully static libcrypto.a + libssl.a from source
@@ -37,7 +49,7 @@ package = {
 
     xpm = {
         linux = {
-            deps = { "xim:make@latest" },
+            deps = { "xim:make@latest", "xim:perl@latest" },
             ["3.5.1"] = {
                 url = {
                     GLOBAL = "https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz",
@@ -55,6 +67,11 @@ package = {
             -- is broken the same way; it goes unnoticed because that package
             -- is Windows-only in the test suite, so its macOS path is never
             -- taken. resolve_make() therefore falls back to PATH here.
+            --
+            -- xim:perl IS declared: it ships a macosx x86_64/arm64 build, so
+            -- it resolves here and the platform gets the same
+            -- known-complete interpreter linux does.
+            deps = { "xim:perl@latest" },
             ["3.5.1"] = {
                 url = {
                     GLOBAL = "https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz",
@@ -143,11 +160,43 @@ local function cc_override()
     return ""
 end
 
-local function have(tool)
+-- Does this perl actually RUN, with the core modules Configure opens with?
+--
+-- `command -v perl` answers a different question, and the difference is the
+-- whole of #140: a host can have /usr/bin/perl and no FindBin.pm, and then the
+-- failure lands inside OpenSSL's Configure where it reads as an OpenSSL bug.
+-- The module list is Configure's own opening lines (Config, FindBin,
+-- File::Basename/File::Spec/File::Path), plus POSIX, which the Makefile's
+-- perl helpers use.
+local function perl_usable(perl)
     return pcall(function()
         os.exec(string.format("bash -c %s",
-                              sh_quote("command -v " .. tool .. " >/dev/null 2>&1")))
+                sh_quote(sh_quote(perl)
+                         .. " -MConfig -MFindBin -MFile::Path -MFile::Spec"
+                         .. " -MFile::Basename -MPOSIX -e exit"
+                         .. " >/dev/null 2>&1")))
     end)
+end
+
+-- Returns the perl to build with and the bindir to put in front of PATH, or
+-- nil. The bindir matters as much as the binary: `./config` is a shell script
+-- that execs `Configure`, whose shebang is `#!/usr/bin/env perl` — so it takes
+-- whatever PATH resolves, not whatever we invoke. Handing it the right PATH is
+-- the only way to steer it, and Configure then records that same interpreter
+-- as `$config{PERL}` (from `$^X`) for the rest of the build.
+local function resolve_perl()
+    local p = pkginfo.build_dep("xim:perl") or pkginfo.build_dep("perl")
+    if p and p.bin then
+        local cand = path.join(p.bin, "perl")
+        if os.isfile(cand) and perl_usable(cand) then
+            return cand, p.bin
+        end
+    end
+    -- Fallback: whatever PATH already has, but only if it passes the same
+    -- check. An engine that cannot resolve the build dep should still build on
+    -- a host whose own perl is complete.
+    if perl_usable("perl") then return "perl", nil end
+    return nil, nil
 end
 
 -- Last `n` lines of the build log, or nil if it cannot be read.
@@ -180,11 +229,26 @@ local function run(step, logf, cmd)
 end
 
 local function _install_impl()
-    if not have("perl") then
-        log.error("compat.openssl: `perl` not found on PATH. OpenSSL's "
-               .. "./config is a Perl script and there is no xim:perl build "
-               .. "dep to fall back on — install perl and retry.")
+    local perl, perlbin = resolve_perl()
+    if not perl then
+        log.error("compat.openssl: no usable perl. OpenSSL's ./config execs "
+               .. "Configure, which needs a perl WITH its core modules "
+               .. "(Config, FindBin, File::Path, POSIX) — a perl binary alone "
+               .. "is not enough, and a perl missing them fails inside "
+               .. "Configure with `Can't locate FindBin.pm in @INC`. The "
+               .. "xim:perl build dep should have supplied one; if it could "
+               .. "not be resolved, install a complete perl (e.g. Debian "
+               .. "perl-modules, Fedora perl-core) and retry.")
         return false
+    end
+
+    -- Put the resolved perl FIRST on PATH for every build step. Configure's
+    -- shebang is `#!/usr/bin/env perl`, so this — not the command we type — is
+    -- what decides which interpreter runs it. Empty when the fallback picked
+    -- up the host's own perl, which is already on PATH by definition.
+    local perl_path = ""
+    if perlbin then
+        perl_path = "export PATH=" .. sh_quote(perlbin) .. ':"$PATH"; '
     end
 
     -- The fetched tarball unpacks to openssl-<ver>/ beside the archive. Every
@@ -229,20 +293,24 @@ local function _install_impl()
 
     -- Record which make is in play: "3.81 vs 4.x" is the difference between a
     -- build and a wall of Makefile syntax errors, and it is invisible after
-    -- the fact otherwise.
+    -- the fact otherwise. `command -v perl` is logged under the same PATH the
+    -- build will use, so the log says which interpreter Configure got rather
+    -- than which one we hoped it would get.
     run("build environment", logf, string.format(
-        "{ %s --version; echo \"cc: $(command -v cc)\"; cc --version; " ..
-        "perl --version; } >> %s 2>&1 || true", make, sh_quote(logf)))
+        "%s{ %s --version; echo \"cc: $(command -v cc)\"; cc --version; " ..
+        "echo \"perl: $(command -v perl)\"; perl --version; } >> %s 2>&1 || true",
+        perl_path, make, sh_quote(logf)))
 
     local cc = cc_override()
     if not run("./config", logf, string.format(
-        "cd %s && %s./config --prefix=%s --libdir=lib %s >> %s 2>&1",
-        sh_quote(srcroot), cc, sh_quote(prefix), flags, sh_quote(logf))) then
+        "%scd %s && %s./config --prefix=%s --libdir=lib %s >> %s 2>&1",
+        perl_path, sh_quote(srcroot), cc, sh_quote(prefix), flags,
+        sh_quote(logf))) then
         return false
     end
     if not run("make", logf, string.format(
-        "cd %s && %s -j%d >> %s 2>&1",
-        sh_quote(srcroot), make, jobs, sh_quote(logf))) then
+        "%scd %s && %s -j%d >> %s 2>&1",
+        perl_path, sh_quote(srcroot), make, jobs, sh_quote(logf))) then
         return false
     end
 
@@ -261,8 +329,8 @@ local function _install_impl()
     -- were not there.
     local ranlib = (os.host() == "macosx") and " RANLIB=/usr/bin/ranlib" or ""
     if not run("make install_sw", logf, string.format(
-        "cd %s && %s%s install_sw >> %s 2>&1",
-        sh_quote(srcroot), make, ranlib, sh_quote(logf))) then
+        "%scd %s && %s%s install_sw >> %s 2>&1",
+        perl_path, sh_quote(srcroot), make, ranlib, sh_quote(logf))) then
         return false
     end
 
