@@ -29,7 +29,25 @@
 -- Defines
 --   GDEXTENSION is upstream's PUBLIC compile definition (cmake sets it on the
 --   godot-cpp target's INTERFACE), so it rides on a default feature: the lib
---   and every consumer TU must agree. The layout-affecting ones are left
+--   and every consumer TU must agree.
+--
+--   TYPED_METHOD_BIND rides along, and is not optional on the MSVC ABI.
+--   Without it, method_bind.hpp reinterpret_casts member pointers through a
+--   FORWARD-DECLARED `_gde_UnexistingClass`; under the MSVC ABI a
+--   pointer-to-member's size depends on the class's inheritance model, so for
+--   an incomplete class clang-cl rejects the cast outright ("cannot
+--   reinterpret_cast ... to member pointer type of different size") and every
+--   ClassDB::bind_method call fails to compile. Upstream's cmake sets it
+--   PUBLIC for exactly this reason ($<${IS_MSVC}: TYPED_METHOD_BIND ...> in
+--   cmake/windows.cmake). It is set unconditionally rather than per-OS
+--   because it is a HEADER switch that changes MethodBindT's template
+--   parameter list -- library and consumer must agree on it, and one uniform
+--   answer is cheaper to guarantee than an OS-conditional one. The cost off
+--   MSVC is some extra template instantiation, which is why upstream keeps
+--   the untyped path as its default there; there is no behavioural
+--   difference. (WINDOWS_ENABLED and NOMINMAX, which upstream sets alongside,
+--   are NOT needed: neither appears anywhere in the shipped headers or
+--   sources.) The layout-affecting ones are left
 --   undefined on both sides, which is upstream's release default:
 --   DEBUG_ENABLED / DEV_ENABLED (extra checks), HOT_RELOAD_ENABLED (changes
 --   the Wrapped layout) and REAL_T_IS_DOUBLE (needs the double-precision
@@ -54,6 +72,13 @@ package = {
     -- gdextension_interface.h ABI).
     xpm = {
         linux = {
+            ["10.0.0-rc1"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                },
+                sha256 = "aaafbf50d4b8469d610fdb2eb76c6f58d758dbabbc6b013f60464d99b20ceb6e",
+            },
             ["4.5.0"] = {
                 url = {
                     GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/4.5.0/godot-cpp-4.5.0.tar.gz",
@@ -63,6 +88,13 @@ package = {
             },
         },
         macosx = {
+            ["10.0.0-rc1"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                },
+                sha256 = "aaafbf50d4b8469d610fdb2eb76c6f58d758dbabbc6b013f60464d99b20ceb6e",
+            },
             ["4.5.0"] = {
                 url = {
                     GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/4.5.0/godot-cpp-4.5.0.tar.gz",
@@ -72,6 +104,13 @@ package = {
             },
         },
         windows = {
+            ["10.0.0-rc1"] = {
+                url = {
+                    GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz",
+                },
+                sha256 = "aaafbf50d4b8469d610fdb2eb76c6f58d758dbabbc6b013f60464d99b20ceb6e",
+            },
             ["4.5.0"] = {
                 url = {
                     GLOBAL = "https://github.com/xlings-res/godot-cpp/releases/download/4.5.0/godot-cpp-4.5.0.tar.gz",
@@ -88,20 +127,27 @@ package = {
         import_std   = false,
         -- Three roots, exactly as upstream's build systems expose them:
         -- hand-written headers, generated headers, and the GDExtension C ABI
-        -- header (gdextension_interface.h) that both of them include.
+        -- header that both of them include. Where that header lives moved
+        -- between the two versions -- 4.5 checks in gdextension/
+        -- gdextension_interface.h, 10.x generates it into gen/include/ from
+        -- gdextension_interface.json -- so both roots stay listed.
         include_dirs = { "*/include", "*/gen/include", "*/gdextension" },
         -- Enumerated rather than `**`: upstream's own test project ships a
         -- test/src/*.cpp that must not be swept into the library, and the two
         -- source roots are only ever one and two levels deep.
+        -- Union of both layouts, catch2-style: a glob that matches nothing on
+        -- a given version is simply skipped. 10.x adds one .cpp directly under
+        -- gen/src/ that 4.5 does not have.
         sources      = {
             "*/src/*.cpp",
             "*/src/*/*.cpp",
+            "*/gen/src/*.cpp",
             "*/gen/src/*/*.cpp",
         },
         targets      = { ["godot-cpp"] = { kind = "lib" } },
         features     = {
             ["default"]    = { implies = { "gdextension" } },
-            ["gdextension"] = { defines = { "GDEXTENSION" } },
+            ["gdextension"] = { defines = { "GDEXTENSION", "TYPED_METHOD_BIND" } },
         },
         deps         = { },
         -- A GDExtension IS a shared library, so this static library's objects

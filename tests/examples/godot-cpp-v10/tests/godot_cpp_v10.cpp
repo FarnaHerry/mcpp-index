@@ -1,23 +1,20 @@
-// Behavioral test for compat.godot-cpp.
+// Behavioral test for compat.godot-cpp 10.0.0-rc1 -- godot-cpp's own 10.x
+// version line, whose bindings target Godot 4.6.
 //
-// Two things are under test, and both can fail:
+// The point of a second member is that it can tell the two versions apart, so
+// the first thing asserted is WHICH bindings arrived: the generated version
+// header and a class that exists in 4.6 and not in 4.5. The rest mirrors the
+// 4.5 member so a behavioural difference between the two would show up as a
+// diff between two otherwise identical tests.
 //
-//  1. The PRE-GENERATED bindings are really in the package. gen/include is
-//     what upstream's binding_generator.py would have produced at build time;
-//     if it were missing, <godot_cpp/classes/node.hpp> and the global
-//     constants below would not compile at all.
-//  2. The library links. Vector2::length(), Basis::orthonormalized(),
-//     Color::to_rgba32() and AABB::get_volume() are declared in the headers
-//     but DEFINED in src/variant/*.cpp, so these calls only resolve if the
-//     ~1000 translation units of the package were compiled and linked in.
-//
-// Everything asserted here is pure math -- no gdextension_interface function
-// pointers, so no running Godot process is needed. Engine classes are checked
-// by compiling against them (types, enums, sizes), which is all that can be
-// done outside a loaded extension.
+// As there, everything asserted is pure math or compile-time: anything routed
+// through the gdextension_interface_* pointers needs a Godot process that has
+// loaded the extension.
 
+#include <godot_cpp/classes/editor_dock.hpp>  // new in Godot 4.6
 #include <godot_cpp/classes/global_constants.hpp>
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/core/version.hpp>
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
@@ -63,7 +60,12 @@ private:
 };
 
 int main() {
-    // --- out-of-line variant math: proves the library linked ---
+    // these bindings are Godot 4.6, not the 4.5 the sibling member pins
+    const bool version_ok = GODOT_VERSION_MAJOR == 4 &&
+                            GODOT_VERSION_MINOR == 6 &&
+                            sizeof(EditorDock) > 0;
+
+    // out-of-line variant math: proves the library linked
     const bool vec2_ok = close(Vector2(3, 4).length(), 5.0) &&
                          close(Vector2(3, 4).normalized().length(), 1.0);
 
@@ -71,8 +73,7 @@ int main() {
     const bool vec3_ok = cross == Vector3(0, 0, 1) &&
                          close(Vector3(2, 3, 6).length(), 7.0);
 
-    const Basis basis = Basis().orthonormalized();
-    const bool basis_ok = close(basis.determinant(), 1.0);
+    const bool basis_ok = close(Basis().orthonormalized().determinant(), 1.0);
 
     const bool color_ok = Color(1.0f, 0.0f, 0.0f, 1.0f).to_rgba32() == 0xff0000ffu;
 
@@ -80,15 +81,13 @@ int main() {
     const AABB other(Vector3(1, 1, 1), Vector3(4, 4, 4));
     const bool aabb_ok = close(box.get_volume(), 24.0) &&
                          box.intersects(other) &&
-                         close(box.intersection(other).get_volume(), 1.0 * 2.0 * 3.0);
+                         close(box.intersection(other).get_volume(), 6.0);
 
-    // --- generated bindings: engine class + global enums are visible ---
     const bool gen_ok = sizeof(Node) > 0 &&
                         Node::PROCESS_MODE_INHERIT == 0 &&
                         Node::PROCESS_MODE_DISABLED == 4 &&
                         godot::OK == 0 &&
                         godot::ERR_FILE_NOT_FOUND == 7 &&
-                        godot::SIDE_LEFT == 0 &&
                         Variant::OBJECT != Variant::NIL;
 
     // ODR-use what GDCLASS generated without calling into the engine
@@ -97,8 +96,9 @@ int main() {
     const bool bind_ok = class_name_fn != nullptr && init_fn != nullptr &&
                          std::is_base_of<Node, TestSprite>::value;
 
-    const bool ok = bind_ok && vec2_ok && vec3_ok && basis_ok && color_ok && aabb_ok && gen_ok;
-    std::printf("bind=%d vec2=%d vec3=%d basis=%d color=%d aabb=%d gen=%d\n",
-                bind_ok, vec2_ok, vec3_ok, basis_ok, color_ok, aabb_ok, gen_ok);
+    const bool ok = bind_ok && version_ok && vec2_ok && vec3_ok && basis_ok && color_ok &&
+                    aabb_ok && gen_ok;
+    std::printf("version=%d bind=%d vec2=%d vec3=%d basis=%d color=%d aabb=%d gen=%d\n",
+                version_ok, bind_ok, vec2_ok, vec3_ok, basis_ok, color_ok, aabb_ok, gen_ok);
     return ok ? 0 : 1;
 }

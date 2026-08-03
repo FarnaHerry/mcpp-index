@@ -1,0 +1,15 @@
+# compat.godot-cpp 10.0.0-rc1 (Godot 4.6) test project.
+#
+# Separate member rather than a second dependency in the 4.5 one: the two
+# versions are different bindings of different engine releases, and each has to
+# be built and asserted on its own -- same shape as catch2 / catch2-v2.
+#
+# `compat` is redirected to this checkout by the workspace-root [indices],
+# which every member inherits.
+
+[package]
+name    = "godot-cpp-v10-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+godot-cpp = "10.0.0-rc1"

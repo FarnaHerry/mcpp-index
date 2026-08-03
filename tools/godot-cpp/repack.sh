@@ -43,9 +43,28 @@ test -d "$WORK/$WRAP" || { echo "unexpected wrap dir in archive" >&2; exit 1; }
 echo "==> generating bindings with upstream binding_generator.py"
 (
     cd "$WORK/$WRAP"
+    # generate_bindings() grew an `interface_filepath` parameter between
+    # godot-4.5-stable and 10.0.0-rc1, where gdextension_interface.h stopped
+    # being checked in and became generated from gdextension_interface.json.
+    # Dispatch on the actual signature and on which file the tag ships, rather
+    # than on the tag itself, so this keeps working across the change in both
+    # directions (cmake's GODOTCPP_GDEXTENSION_INTERFACE_FILE does the same).
     "$PYTHON" -c "
+import inspect
+import os
 import binding_generator
-binding_generator.generate_bindings('gdextension/extension_api.json', True, '64', 'single', '.')
+
+params = inspect.signature(binding_generator.generate_bindings).parameters
+if 'interface_filepath' in params:
+    interface = 'gdextension/gdextension_interface.json'
+    if not os.path.exists(interface):
+        interface = 'gdextension/gdextension_interface.h'
+    binding_generator.generate_bindings(
+        'gdextension/extension_api.json', interface,
+        True, '64', 'single', '.')
+else:
+    binding_generator.generate_bindings(
+        'gdextension/extension_api.json', True, '64', 'single', '.')
 "
     # generate_bindings() imports the module, which leaves bytecode behind
     find . -name '__pycache__' -type d -prune -exec rm -rf {} +
