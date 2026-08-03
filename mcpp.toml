@@ -10,6 +10,7 @@ members = [
     "tests/examples/archive",
     "tests/examples/asio-module",
     "tests/examples/asio-ssl",
+    "tests/examples/boost-ext.ut",
     "tests/examples/build-mcpp",
     "tests/examples/catch2",
     "tests/examples/catch2-main",
