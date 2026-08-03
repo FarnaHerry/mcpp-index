@@ -1,0 +1,15 @@
+# compat.godot-cpp test project: builds the pre-generated GDExtension bindings
+# and asserts on the part of the API that runs without a Godot process --
+# the Variant math types, whose out-of-line definitions live in the library's
+# src/variant/*.cpp, so a passing run proves the ~1000-TU library really did
+# compile and link.
+#
+# `compat` is redirected to this checkout by the workspace-root [indices],
+# which every member inherits.
+
+[package]
+name    = "godot-cpp-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+godot-cpp = "4.5.0"

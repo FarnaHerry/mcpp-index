@@ -39,6 +39,7 @@ mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上�
 | header-only(含 `features`) | [`compat.eigen`](pkgs/c/compat.eigen.lua) |
 | 运行时 loader compat(纯源码,绕开上游 codegen/asm) | [`compat.vulkan`](pkgs/c/compat.vulkan.lua)(Khronos loader:`loader/generated/` 已签入,汇编路径经 `UNKNOWN_FUNCTIONS_SUPPORTED` 降级为纯 C,故无需 CMake/Python/汇编器;windows 延后)· [`compat.vulkan-headers`](pkgs/c/compat.vulkan-headers.lua) |
 | 全源码直编 + 生成 config(仅缺口平台) | [`compat.curl`](pkgs/c/compat.curl.lua)(win32 用上游签入 config,unix 生成) · [`compat.sdl2`](pkgs/c/compat.sdl2.lua)(win/mac 用上游签入 config,linux 生成 + 手工开 X11) |
+| 上游 codegen 前置冻结进镜像归档 | [`compat.godot-cpp`](pkgs/c/compat.godot-cpp.lua)(`gen/` 下约 1000 个 GDExtension 类不在任何上游 tag 归档里,由上游 `binding_generator.py` 在构建时生成。改为离线跑一次,把上游源码树逐字节原样 **加上** `gen/` 一起发布,消费侧就完全不需要 Python;`tools/godot-cpp/repack.sh` 可确定性复现该归档,且上游文件一旦有出入即拒绝打包) |
 | 补索引空缺的头文件包 | [`compat.glx-headers`](pkgs/c/compat.glx-headers.lua)(libglvnd 的 `GL/glx.h`,Khronos registry 不含,SDL 的 X11 后端必需) |
 | C++ 应用框架 compat(依赖复用索引内既有包) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua)(上游 `3rd/` 自带 8 个 vendored 依赖,此处一个不编,全部改指索引内同版本 `compat.*`) |
 | 互斥后端(同包多后端二选一) | [`compat.eui-neo`](pkgs/e/compat.eui-neo.lua):`vulkan` / `sdl2` 各自**替换**默认的 OpenGL / GLFW,默认后端由"不点名任何 feature"表达,并不存在 `opengl`/`glfw` feature。`default` feature 表达不了互斥 —— 它自带的 `defines`/`sources`/`deps` 完全不生效,而 `implies` 又恒生效、无法被点名的 feature 覆盖(后者反而正好是本表『恒开的 interface define』一行的解法)。可行解是读 mcpp 本就会传的 `-DMCPP_FEATURE_<NAME>`,在强制包含头里做前置判定。另注意 `cflags` 只作用于 C TU,C++ 需 `cxxflags` —— 只写进 `cflags` 的后端 define 到不了任何 `.cpp` |
