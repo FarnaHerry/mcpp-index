@@ -76,7 +76,20 @@ package = {
         -- `*/src` carries the public <google/protobuf/…> headers;
         -- `*/third_party/utf8_range` carries utf8_range.h + utf8_validity.h,
         -- which protobuf's own TUs include unqualified.
-        include_dirs = { "*/src", "*/third_party/utf8_range" },
+        --
+        -- The last two exist for the `upb` feature but are declared
+        -- unconditionally: `features` can gate sources/defines/deps, not
+        -- include dirs, and the feature's own TUs need them to compile. Both
+        -- are additive rather than shadowing — the tarball root supplies only
+        -- `upb/…` (protobuf's C++ headers live under src/, not at the root),
+        -- and the bootstrap dir supplies `google/protobuf/descriptor.upb*.h`,
+        -- a different file name from the C++ `descriptor.h` next door.
+        include_dirs = {
+            "*/src",
+            "*/third_party/utf8_range",
+            "*",                        -- upb/… headers
+            "*/upb/reflection/cmake",   -- google/protobuf/descriptor.upb*.h
+        },
 
         -- Transcribed from upstream's own authoritative list — the
         -- `libprotobuf_srcs` set in src/file_lists.cmake, which upstream
@@ -198,6 +211,98 @@ package = {
             ["gzip"] = {
                 defines = { "HAVE_ZLIB=1" },
                 deps    = { ["compat.zlib"] = "1.3.2" },
+            },
+
+            -- upb — protobuf's small C runtime, vendored in the SAME tarball
+            -- (upb/ at the root) since protobuf v22 absorbed it. Off by
+            -- default: nothing in the C++ runtime uses it, and it is 64 extra
+            -- C TUs. gRPC is the consumer that needs it — its generated
+            -- src/core/ext/upb-gen/**.c is upb code and links against this
+            -- runtime.
+            --
+            -- The list is transcribed from upstream's `libupb_srcs`
+            -- (src/file_lists.cmake) rather than globbed, and that is not
+            -- fussiness: `upb/**/*.c` would pull in 14 more files, among them
+            -- TWO ALTERNATIVE BUILDS of the descriptor tables
+            -- (upb/reflection/stage0/… and upb/reflection/cmake/…) plus
+            -- upb/message/promote.c and the decode_fast/ variants. Compiling
+            -- more than one descriptor variant is a duplicate-symbol link
+            -- failure.
+            --
+            -- descriptor.upb_minitable.c IS included even though it is not in
+            -- libupb_srcs: upstream's cmake/libupb.cmake adds exactly this
+            -- file as `bootstrap_sources` on top of the list, because
+            -- upb/reflection/descriptor_bootstrap.h — reached by the whole
+            -- reflection layer — needs the descriptor tables. Without it the
+            -- feature builds and only fails at link time.
+            ["upb"] = {
+                sources = {
+                    "*/upb/base/status.c",
+                    "*/upb/hash/common.c",
+                    "*/upb/json/decode.c",
+                    "*/upb/json/encode.c",
+                    "*/upb/lex/atoi.c",
+                    "*/upb/lex/round_trip.c",
+                    "*/upb/lex/strtod.c",
+                    "*/upb/lex/unicode.c",
+                    "*/upb/mem/alloc.c",
+                    "*/upb/mem/arena.c",
+                    "*/upb/message/accessors.c",
+                    "*/upb/message/array.c",
+                    "*/upb/message/compare.c",
+                    "*/upb/message/compat.c",
+                    "*/upb/message/copy.c",
+                    "*/upb/message/internal/compare_unknown.c",
+                    "*/upb/message/internal/extension.c",
+                    "*/upb/message/internal/iterator.c",
+                    "*/upb/message/internal/message.c",
+                    "*/upb/message/map.c",
+                    "*/upb/message/map_sorter.c",
+                    "*/upb/message/merge.c",
+                    "*/upb/message/message.c",
+                    "*/upb/mini_descriptor/build_enum.c",
+                    "*/upb/mini_descriptor/decode.c",
+                    "*/upb/mini_descriptor/internal/base92.c",
+                    "*/upb/mini_descriptor/internal/encode.c",
+                    "*/upb/mini_descriptor/link.c",
+                    "*/upb/mini_table/compat.c",
+                    "*/upb/mini_table/debug_string.c",
+                    "*/upb/mini_table/extension_registry.c",
+                    "*/upb/mini_table/generated_registry.c",
+                    "*/upb/mini_table/internal/message.c",
+                    "*/upb/mini_table/message.c",
+                    "*/upb/reflection/def_pool.c",
+                    "*/upb/reflection/def_type.c",
+                    "*/upb/reflection/desc_state.c",
+                    "*/upb/reflection/enum_def.c",
+                    "*/upb/reflection/enum_reserved_range.c",
+                    "*/upb/reflection/enum_value_def.c",
+                    "*/upb/reflection/extension_range.c",
+                    "*/upb/reflection/field_def.c",
+                    "*/upb/reflection/file_def.c",
+                    "*/upb/reflection/internal/def_builder.c",
+                    "*/upb/reflection/internal/strdup2.c",
+                    "*/upb/reflection/message.c",
+                    "*/upb/reflection/message_def.c",
+                    "*/upb/reflection/message_reserved_range.c",
+                    "*/upb/reflection/method_def.c",
+                    "*/upb/reflection/oneof_def.c",
+                    "*/upb/reflection/service_def.c",
+                    "*/upb/text/debug_string.c",
+                    "*/upb/text/encode.c",
+                    "*/upb/text/internal/encode.c",
+                    "*/upb/util/def_to_proto.c",
+                    "*/upb/util/required_fields.c",
+                    "*/upb/wire/byte_size.c",
+                    "*/upb/wire/decode.c",
+                    "*/upb/wire/decode_fast/select.c",
+                    "*/upb/wire/encode.c",
+                    "*/upb/wire/eps_copy_input_stream.c",
+                    "*/upb/wire/internal/decoder.c",
+                    "*/upb/wire/reader.c",
+                    -- upstream's bootstrap_sources (cmake/libupb.cmake)
+                    "*/upb/reflection/cmake/google/protobuf/descriptor.upb_minitable.c",
+                },
             },
         },
 

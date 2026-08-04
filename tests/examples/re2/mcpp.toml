@@ -1,0 +1,10 @@
+# re2 test project: consumes compat.re2 and asserts behavior under `mcpp test`.
+# Part of the mcpp-index self-referential workspace — the workspace-root
+# `[indices]` redirect points at this repo, so the dependency resolves to the
+# checked-in recipe (pkgs/c/compat.re2.lua) rather than the published index.
+[package]
+name = "re2-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+re2 = "2022-04-01"

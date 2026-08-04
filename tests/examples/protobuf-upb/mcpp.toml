@@ -1,0 +1,13 @@
+# protobuf `upb` feature member. The sibling tests/examples/protobuf covers the
+# DEFAULT build, where none of upb's 64 C TUs are compiled at all.
+#
+# upb is protobuf's small C runtime, vendored in the same tarball since v22.
+# gRPC is what needs it — its generated src/core/ext/upb-gen/**.c links against
+# this runtime — so this member is the standalone proof that the feature builds
+# and works before gRPC depends on it.
+[package]
+name = "protobuf-upb-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+protobuf = { version = "35.1", features = ["upb"] }
