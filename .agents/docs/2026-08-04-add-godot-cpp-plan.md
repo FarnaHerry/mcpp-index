@@ -116,17 +116,44 @@ godot_cpp ... ok (0.12s)
 直接链接跑通 —— 用来提前确认「依赖 .o 全量入链」下没有未解析符号(不需要 `-ldl`/`-lpthread`)。
 CPU 时间约 16 分钟,4 核 runner 上折合 4~5 分钟。
 
-## 6. 后续:模块层 godotengine.godot-cpp
+## 6. 后续:模块层 godotengine.godot-cpp-m
 
 模块包**不**放在本索引里内联(避免索引变重,也避免把 1000 TU 再编一遍):按 Form A 走外部仓
-`mcpplibs/godot-cpp-m`,其 `mcpp.toml` 依赖 `compat.godot-cpp`,提供 `import godot_cpp;`
+`mcpplibs/godot-cpp-m`(版本号**与上游对齐**,即 4.5.0 —— 只做 API 重导出的模块层没有自己的版本值得编,
+消费者从 `godot-cpp = "4.5.0"` 需要知道的就是它对着哪个 Godot),其 `mcpp.toml` 依赖 `compat.godot-cpp`,提供 `import godot_cpp;`
 (单段模块名,与 `#include <godot_cpp/...>` 和库名对应;点号在本索引里留给子模块,如 `opencv.cv`)。
 
 **顺序是硬约束**:模块成员的测试工程只能声明一条 `[indices]`,给 `godotengine`;它的传递依赖
 `compat.godot-cpp` 于是从**已发布**的远端索引解析(tests/examples/ffmpeg-module 的注释写的就是这件事)。
 所以必须先合并本 PR、`publish-artifact` 重新发布 artifact,第二个 PR 的 CI 才可能绿。
 
-模块 wrapper 的生成方式已验证可行:1077 个头在单个 TU 里全部编过只要 3.5 秒 / 728 MB RSS,
-按命名空间作用域声明批量产出 `export using ::godot::X;` 即可。**宏不在其中** —— `GDCLASS`、
-`GDREGISTER_CLASS`、`memnew`、`ERR_*`、`GDVIRTUAL_*` 是预处理器构造,模块带不走,做类注册的 TU
-仍需 `#include` 对应头;这一条要在 godot-cpp-m 的 README 与描述符注释里写明。
+### 已完成(mcpplibs/godot-cpp-m 0.0.1)
+
+`src/godot_cpp.cppm` 由 `tools/gen_module_cppm.py` **生成**:扫描头文件(带花括号/命名空间状态机),
+把 `godot` 命名空间作用域的全部声明批量产出为 `export using ::godot::X;`,约 1750 个名字 ——
+全部引擎类、全部 builtin Variant 类型、全局枚举**连同枚举量**(所以 `godot::OK` 拼法不变)、
+`godot::Math`、模板。手工罗列这个面积不现实,且每个 Godot 版本都会变,故生成 + 编译器校验。
+
+踩到的两类坑:
+
+- **宏带不走**。`GDCLASS`、`GDREGISTER_CLASS`、`GDVIRTUAL_*`、`D_METHOD`、`memnew`、`ERR_*` 是预处理器
+  构造,而 GDExtension 代码正是用它们写的。解法照搬 ffmpeg-m:附一个侧头文件
+  `<godot-cpp-m/macros.h>`,与 import 并排包含。godot-cpp 的头在模块的 GMF 里,两种拼法指向同一批
+  global-module 实体,混用是良构的 —— `tests/godot_cpp_macros.cpp` 就是这个形状,通过。
+- **TU-local 暴露是硬错误,不是告警**。`HashMap`/`HashSet` 及其默认 hasher 的内联体会走到
+  `hash_murmur3_one_float/double`,这两个既是 `static`,体内又声明了匿名 union;从模块接口暴露一个
+  TU-local **类型**是 error(不是 `-Wexpose-global-module-tu-local` 那条 warning)。用二分法在 1759 个
+  导出名里定位到 7 个(含 `PairHash`),排除即可 —— 它们是 godot-cpp 内部容器,扩展代码用
+  Dictionary/Array/TypedArray,头文件里也仍然拿得到。另外那 3300 条 warning 级暴露用
+  `-Wno-expose-global-module-tu-local` 静掉,是上游头的形态,包一层改变不了。
+
+验证:`mcpp test` 两条全过(模块面 + 宏面),`examples/summator`(真 GDExtension,`kind = "shared"`)
+构建出 `libsummator.so` 且导出 `summator_library_init`。
+
+### 本 PR(索引侧)可验证到哪一步
+
+`godotengine.godot-cpp` 是 Form A,索引侧只有描述符;成员的 `[indices]` 给了 `godotengine`,
+所以传递依赖 `compat.godot-cpp` 必须从**已发布**的索引解析。合并前本地伪造 published index 来验证
+是走不通的:mcpp 在解析不到时会主动 refresh 一次,把注入的状态直接冲掉(参见
+[[stale-global-index-masks-descriptor-bugs]] 的反面)。因此这一步的唯一真实验证就是
+compat PR 合并 + artifact 重新发布之后的 CI。

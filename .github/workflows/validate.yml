@@ -409,6 +409,30 @@ jobs:
           echo "MEMBERS=$sel" >> "$GITHUB_ENV"
           echo "selected members: ${sel:-<none>}"
 
+      # ── Refresh the PUBLISHED index before testing ────────────────────
+      # Most members resolve everything from this checkout, but a member that
+      # redirects a namespace other than `compat` gets the REST from the
+      # published index — and nothing here ever refreshed it. The snapshot in
+      # play is whatever the pinned mcpp release vendored (the Download step
+      # `cp -a`s the release's registry/ over ~/.mcpp/registry, on top of the
+      # restored cache), so it is by construction older than main, and it
+      # never moves: the cache is saved with that same stale copy inside it.
+      #
+      # mcpp does refresh on a miss for a DIRECT dependency, which is why this
+      # went unnoticed — the gap is a Form-A package's TRANSITIVE dependency.
+      # tests/examples/godot-cpp-module hit it head-on: the module package's
+      # own compat.godot-cpp dep resolved against a snapshot predating the
+      # commit that added it, and failed with `index: local index <sha> (never
+      # refreshed)` even though the artifact had already been republished.
+      # (Older members never noticed: their compat packages have been in the
+      # index far longer than any snapshot.)
+      - name: Refresh the published package index
+        shell: bash
+        env:
+          MCPP_INDEX_MIRROR: GLOBAL
+        run: |
+          "$MCPP" index update
+
       - name: mcpp test (workspace or affected members)
         shell: bash
         env:

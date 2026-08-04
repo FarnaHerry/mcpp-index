@@ -1,0 +1,20 @@
+# godotengine.godot-cpp-m 10.0.0-rc1 (Godot 4.6) module-layer test project.
+#
+# Separate member from godot-cpp-module for the same reason compat has two:
+# the versions are different bindings of different engine releases, and each
+# has to be built and asserted on its own.
+#
+# Overrides the workspace-root redirect: root declares `compat`, this member
+# needs `godotengine`. A member-level [indices] REPLACES the inherited table,
+# so the module package's own compat.godot-cpp dependency resolves from the
+# GLOBAL published index -- that descriptor is pre-merge-validated by
+# tests/examples/godot-cpp-v10.
+[indices]
+godotengine = { path = "../../.." }
+
+[package]
+name    = "godot-cpp-module-v10-tests"
+version = "0.1.0"
+
+[dependencies]
+godotengine.godot-cpp-m = "10.0.0-rc1"

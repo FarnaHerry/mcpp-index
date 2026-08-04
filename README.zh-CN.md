@@ -48,6 +48,7 @@ mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上�
 | 单包多 major(形态随版本切换) | [`compat.catch2`](pkgs/c/compat.catch2.lua)(3.x 编 `src/catch2/` 出静态库;2.x 走 `single_include/` header-only) |
 | 外部构建系统(`install()` 从源码构建) | [`compat.openblas`](pkgs/c/compat.openblas.lua)(Make) · [`compat.openssl`](pkgs/c/compat.openssl.lua)(Perl Configure + Make,静态 libssl/libcrypto) |
 | 全源码直编(config 快照 + 源列表,零外部构建系统) | [`compat.ffmpeg`](pkgs/c/compat.ffmpeg.lua)(2281 TU 含 NASM 汇编,28 个目录 glob 声明) |
+| 模块层叠在 compat 源码构建之上(外部 Form-A 仓) | [`godotengine.godot-cpp-m`](pkgs/g/godotengine.godot-cpp-m.lua)(两个版本与上游对齐:`10.0.0-rc1` 对应 Godot 4.6,`4.5.0` 对应 Godot 4.5。`import godot_cpp;` 重导出整个 `godot` 命名空间,约 1800 个名字由头文件**生成**而非手工罗列;1022 个 TU 的构建留在 `compat.godot-cpp`,索引侧只留这一个描述符。宏 —— `GDCLASS`、`GDREGISTER_CLASS`、`memnew`、`ERR_*` —— 是具名模块唯一带不走的东西,故包内附一个与 import 并排包含的侧头文件。另外还带一份生成的 `hashfuncs.hpp` 遮蔽头 —— 上游那个头去掉两个函数的 `static`(它们体内声明了匿名 union)—— 否则 GCC 直接拒绝该模块接口,且是任何 `-W` 开关都够不到的硬错误) |
 | C++23 module wrapper | [`nlohmann.json`](pkgs/n/nlohmann.json.lua) · [`marzer.tomlplusplus`](pkgs/m/marzer.tomlplusplus.lua) · [`neargye.magic_enum`](pkgs/n/neargye.magic_enum.lua) · [`boost-ext.ut`](pkgs/b/boost-ext.ut.lua)(逐字复用上游自带的 `include/boost/ut.cppm`,仅加一处 Clang-on-MSVC 需要的 `__argc`/`__argv` shim;命名空间取 `boost-ext`,因其并非 boost 官方库) |
 
 ### 新增一个包
