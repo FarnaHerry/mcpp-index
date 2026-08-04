@@ -1,0 +1,34 @@
+# grpc test project: consumes the mcpplibs.grpc Form-A package (grpc-m) and
+# asserts behavior under `mcpp test`.
+#
+# The `default` namespace redirect points the built-in mcpplibs namespace at
+# this checkout, so the descriptor under test is pkgs/g/grpc.lua — not whatever
+# the published index happens to hold. grpc's own compat.* dependencies still
+# resolve from the published index, which is the point: this member proves the
+# descriptor works against the real dependency set.
+#
+# NO protoc output anywhere: gRPC's codegen needs host tools mcpp cannot hand a
+# consumer, so this exercises the module surface instead. grpc-m's own
+# examples/helloworld covers the generated-stub path end to end.
+[package]
+name = "grpc-module-tests"
+version = "0.1.0"
+
+# linux + macOS only: the package has no windows xpm entry (its compat.openssl
+# dependency has none yet), so on windows this member carries no dependency at
+# all and the test compiles to a no-op main() — the same shape
+# tests/examples/openssl uses for the same underlying reason.
+[target.'cfg(linux)'.dependencies.mcpplibs]
+grpc = "1.83.0"
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_GRPC=1"]
+
+[target.'cfg(macos)'.dependencies.mcpplibs]
+grpc = "1.83.0"
+
+[target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_GRPC=1"]
+
+[indices]
+default = { path = "../../.." }
