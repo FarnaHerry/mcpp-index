@@ -13,6 +13,7 @@ members = [
     "tests/examples/asio-ssl",
     "tests/examples/boost-ext.ut",
     "tests/examples/build-mcpp",
+    "tests/examples/c-ares",
     "tests/examples/catch2",
     "tests/examples/catch2-main",
     "tests/examples/catch2-v2",

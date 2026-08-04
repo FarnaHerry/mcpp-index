@@ -1,0 +1,13 @@
+# c-ares test project: consumes compat.c-ares and asserts behavior under
+# `mcpp test`. Part of the mcpp-index self-referential workspace — the
+# workspace-root `[indices]` redirect points at this repo, so the dependency
+# resolves to the checked-in recipe (pkgs/c/compat.c-ares.lua).
+#
+# The test is entirely OFFLINE: it never sends a DNS query, so it does not
+# depend on the CI runner having (or not having) working name resolution.
+[package]
+name = "c-ares-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+c-ares = "1.34.5"
