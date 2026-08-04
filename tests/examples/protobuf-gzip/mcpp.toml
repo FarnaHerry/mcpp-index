@@ -1,0 +1,13 @@
+# protobuf `gzip` feature member. The sibling tests/examples/protobuf covers
+# the DEFAULT build, where io/gzip_stream.cc compiles to an empty TU and no
+# zlib dependency is pulled at all.
+#
+# Here the feature is requested, which defines HAVE_ZLIB=1 for protobuf's own
+# TUs and pulls compat.zlib as the provider. The long-form dependency spelling
+# is what carries `features`.
+[package]
+name = "protobuf-gzip-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+protobuf = { version = "35.1", features = ["gzip"] }

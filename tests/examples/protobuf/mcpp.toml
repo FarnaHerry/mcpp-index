@@ -1,0 +1,17 @@
+# protobuf test project: consumes compat.protobuf (which in turn pulls
+# compat.abseil) and asserts behavior under `mcpp test`. Part of the
+# mcpp-index self-referential workspace — the workspace-root `[indices]`
+# redirect points at this repo, so both dependencies resolve to the checked-in
+# recipes (pkgs/c/compat.protobuf.lua, pkgs/c/compat.abseil.lua) rather than
+# the published remote index.
+#
+# No .proto codegen anywhere in this member, by design: compat.protobuf ships
+# the RUNTIME, not protoc. The test drives the runtime through the descriptor
+# / DynamicMessage path plus the checked-in well-known types, which is exactly
+# the surface a consumer gets without a compiler.
+[package]
+name = "protobuf-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+protobuf = "35.1"

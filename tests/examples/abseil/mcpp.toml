@@ -1,0 +1,16 @@
+# abseil test project: consumes compat.abseil and asserts behavior under
+# `mcpp test`. Part of the mcpp-index self-referential workspace — the
+# workspace-root `[indices]` redirect points at this repo, so the dependency
+# resolves to the checked-in recipe (pkgs/c/compat.abseil.lua) rather than the
+# published remote index.
+#
+# The test deliberately exercises symbols that live in COMPILED TUs
+# (absl::StrCat, absl::Status, absl::Mutex, absl::Cord, absl::FormatTime),
+# not just header inlines: a green build that linked zero Abseil objects would
+# otherwise look identical to a working one.
+[package]
+name = "abseil-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+abseil = "20250512.1"

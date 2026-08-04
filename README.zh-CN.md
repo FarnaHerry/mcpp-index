@@ -36,6 +36,7 @@ mcpp self config --mirror CN   # 切换至国内镜像,默认使用 GLOBAL 上�
 |------|------|
 | 原生模块库(Form A) | [`mcpplibs.xpkg`](pkgs/x/xpkg.lua) · [`mcpplibs.tinyhttps`](pkgs/t/tinyhttps.lua) · [`tensorvia-cpu`](pkgs/t/tensorvia-cpu.lua) · [`ffmpeg`](pkgs/f/ffmpeg.lua)(模块层,源码经 `compat.ffmpeg` 直编) · [`opencv`](pkgs/o/opencv.lua)(单仓库:模块层与 OpenCV 5 全源码构建同在包内,索引侧只留本描述符) |
 | C 源码 compat(含 `features`) | [`compat.cjson`](pkgs/c/compat.cjson.lua) · [`compat.zlib`](pkgs/c/compat.zlib.lua) |
+| C++ 源码 compat(彼此依赖) | [`compat.abseil`](pkgs/c/compat.abseil.lua)(151 TU;对 `absl/**` 取通配后,按上游自身的 test/benchmark 命名约定裁剪) · [`compat.protobuf`](pkgs/c/compat.protobuf.lua)(libprotobuf 运行时,79 TU 逐条转录自上游 `src/file_lists.cmake`;因 protobuf 公开头文件 include 了 `absl/…`,故显式依赖 `compat.abseil`;`gzip` feature 定义 `HAVE_ZLIB` 并拉入 `compat.zlib`) |
 | header-only(含 `features`) | [`compat.eigen`](pkgs/c/compat.eigen.lua) |
 | 运行时 loader compat(纯源码,绕开上游 codegen/asm) | [`compat.vulkan`](pkgs/c/compat.vulkan.lua)(Khronos loader:`loader/generated/` 已签入,汇编路径经 `UNKNOWN_FUNCTIONS_SUPPORTED` 降级为纯 C,故无需 CMake/Python/汇编器;windows 延后)· [`compat.vulkan-headers`](pkgs/c/compat.vulkan-headers.lua) |
 | 全源码直编 + 生成 config(仅缺口平台) | [`compat.curl`](pkgs/c/compat.curl.lua)(win32 用上游签入 config,unix 生成) · [`compat.sdl2`](pkgs/c/compat.sdl2.lua)(win/mac 用上游签入 config,linux 生成 + 手工开 X11) |

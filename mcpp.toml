@@ -7,6 +7,7 @@
 # mcpp .agents/docs/2026-06-30-workspace-test-and-zero-shell-index-design.md.
 [workspace]
 members = [
+    "tests/examples/abseil",
     "tests/examples/archive",
     "tests/examples/asio-module",
     "tests/examples/asio-ssl",
@@ -41,6 +42,8 @@ members = [
     "tests/examples/nlohmann.json",
     "tests/examples/openblas",
     "tests/examples/openssl",
+    "tests/examples/protobuf",
+    "tests/examples/protobuf-gzip",
     "tests/examples/opencv-module",
     "tests/examples/opencv-module-dnn",
     "tests/examples/opencv-module-unifont",
