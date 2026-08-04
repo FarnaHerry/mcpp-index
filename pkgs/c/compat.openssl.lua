@@ -37,7 +37,17 @@
 -- Platforms:
 --   * linux/macosx — build a fully static libcrypto.a + libssl.a from source
 --     via install() hook (anchor-triggered build, same pattern as compat.openblas).
---   * windows — deferred (requires prebuilt MSVC libs uploaded to xlings-res).
+--   * windows — still deferred, but NOT for the reason written here before:
+--     a source build was attempted and the blocker is not a missing prebuilt
+--     archive. vswhere finds the toolset fine, and then running vcvars in ANY
+--     form takes the whole process chain down — plain `call`, a child
+--     `cmd /c`, and the standard `cmd /c "vcvars & set"` environment dump all
+--     stop dead at that line with no RESULT and no error. See
+--     .agents/docs/2026-08-05-openssl-windows-todo.md for the evidence, the
+--     two host requirements it brings (perl — xim:perl has no windows build;
+--     a VS C++ toolset for nmake, since VC-WIN64A's build_scheme is an NMAKE
+--     makefile), and why a manual run on a windows machine should come before
+--     the next code attempt.
 package = {
     spec        = "1",
     namespace   = "compat",
