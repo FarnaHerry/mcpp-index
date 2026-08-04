@@ -91,3 +91,25 @@ version=1 bind=1 vec2=1 vec3=1 basis=1 color=1 aabb=1 gen=1
 | CN | `https://gitcode.com/mcpp-res/godot-cpp/releases/download/10.0.0-rc1/godot-cpp-10.0.0-rc1.tar.gz` |
 
 两侧下载回来核过 sha,与本地打包一致。
+
+## 8. 后记:libc++ 22 上的 `<cstdlib>`(2026-08-04 补)
+
+`src/godot.cpp` 调 `realloc()`/`free()`,却既没包含 `<cstdlib>` 也没包含 `<stdlib.h>` ——
+一直靠传递包含活着。libstdc++ 和 libc++ ≤20 还给,**libc++ 22 不给了**:
+
+```
+src/godot.cpp:252: error: use of undeclared identifier 'realloc'
+src/godot.cpp:270: error: use of undeclared identifier 'free'
+```
+
+**4.5.0 和 10.0.0-rc1 都有**,所以不按版本门控。CI 之所以没抓到:macOS/Windows 两条 LLVM 腿钉的是
+`llvm@20.1.7`,而 linux 腿用 gcc —— 这个组合(linux + 新 libc++)CI 完全没覆盖。是用户在自己的
+GDExtension 工程里用 `llvm@22.1.8` 撞出来的。
+
+修法是 `cxxflags = { "-include", "cstdlib" }`,**不是**生成一个遮蔽头:出问题的 TU 是**本包自己的**
+`src/godot.cpp`,依赖是拿自己的 include 路径编的,消费侧(哪怕是 godot-cpp-m 那套遮蔽头机制)
+根本够不到它。用 `cxxflags` 而非 `cflags`:本包没有 C 源码,`cflags` 到不了 `.cpp`。
+
+验证(mcpp 2026.8.3.3 + llvm@22.1.8,linux):`compat.godot-cpp` 4.5.0 与 10.0.0-rc1 各自直编通过;
+`import godot_cpp;` 经 godotengine.godot-cpp-m 10.0.0-rc1 通过;用户的真实工程(gamecore + player
+GDExtension)`mcpp build -p player` 产出 `libplayer.so`、`mcpp test -p gamecore` 通过。

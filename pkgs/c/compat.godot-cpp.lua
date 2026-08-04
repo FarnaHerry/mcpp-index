@@ -150,6 +150,21 @@ package = {
             ["gdextension"] = { defines = { "GDEXTENSION", "TYPED_METHOD_BIND" } },
         },
         deps         = { },
+        -- src/godot.cpp calls realloc()/free() but includes neither <cstdlib>
+        -- nor <stdlib.h> -- it has been riding on a transitive include the
+        -- whole time. libstdc++ and libc++ up to 20 still provide one; libc++
+        -- 22 does not, and the TU stops compiling:
+        --
+        --   src/godot.cpp:252: error: use of undeclared identifier 'realloc'
+        --   src/godot.cpp:270: error: use of undeclared identifier 'free'
+        --
+        -- Both 4.5.0 and 10.0.0-rc1 carry it, so this is not version-gated.
+        -- It is a force-include rather than a generated shim header because
+        -- the TU at fault is the PACKAGE's own: a consumer-side header shadow
+        -- never reaches it (the dependency compiles with its own include
+        -- path). cxxflags, not cflags -- this package has no C sources and
+        -- cflags would not reach a .cpp.
+        cxxflags     = { "-include", "cstdlib" },
         -- A GDExtension IS a shared library, so this static library's objects
         -- are almost always linked into one. Without position-independent code
         -- that link fails outright ("relocation R_X86_64_32 against `.rodata`
