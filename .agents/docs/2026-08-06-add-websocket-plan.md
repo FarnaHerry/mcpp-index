@@ -96,10 +96,42 @@ mcpp test -p websocket                       →  test result ok. 1 passed; 0 fa
 lint:`lua` 语法、`check_mirror_urls`(plain-string url 不触发镜像约束)、`check_package_name` 全过;
 `mcpp xpkg parse` 在本地较新 mcpp(2026.8.4.1)与 CI pin(2026.8.3.3)上均 OK。
 
-## 7. 后续待办
+## 7. 后续:server + zlib features(同一天,独立 PR 叠加在 #158 上)
+
+基座合流后,又补了两个可选 feature,`pkgs/c/compat.websocket.lua` 增加 `features` 表:
+
+- **`server`**:把基座剔掉的 4 个 TU 编回来。逐文件核对过,它们只 include 标准库与库内已编的 IX 头,
+  零新增外部依赖。消费端 `features = ["server"]` 即获得 `ix::WebSocketServer`(`SocketServer` 派生,
+  自带 `getPort()` 等)。
+- **`zlib`**:`defines = { "IXWEBSOCKET_USE_ZLIB=1" }` + `deps = { ["compat.zlib"] = "1.3.2" }`,
+  把 gzip codec 从 no-op 变成真正的 permessage-deflate 压缩。define 只到包自身 TU,消费端无需
+  拿到 —— 客户端 `enablePerMessageDeflate()`、server 默认开。
+
+**`server` implies `zlib` —— 一个靠读源码才发现的正确性坑**:`IXWebSocketServer` 默认开启
+permessage-deflate(`_enablePerMessageDeflate = true`),而 transport 的扩展协商**不受**
+`IXWEBSOCKET_USE_ZLIB` 门控(只有 codec 被门控)。若 server 编了而 zlib 没编,server 会宣称压缩、
+却执行不了 —— 因此用具名 feature 的 `implies = { "zlib" }` 强制一起开(参考 `compat.eigen` 的
+`use_blas`;`default` feature 的 implies 恒生效是另一个已知坑,具名 feature 不受影响)。
+
+### 验证(与 CI 一致:mcpp 2026.8.3.3 + gcc@16.1.0 + `MCPP_BUILD_CACHE=local`)
+
+```
+mcpp test -p websocket          →  test result ok. 1 passed; 0 failed   (默认零依赖基座,回归)
+mcpp test -p websocket-features →  test result ok. 1 passed; 0 failed   (server + zlib)
+```
+
+- `websocket-features` 成员:起真实 `ix::WebSocketServer` 于 loopback,text/binary 往返;**压缩在
+  线路上可观测**:64 KiB 重复 `'a'` 往返,`message.str.size()` = 65536 而 `wireSize` = **80** ——
+  该字段在 transport 里取原始帧负载大小(压缩后),`str` 是解压后内容,比值即压缩证据。
+- **负向验证**:默认成员(无 feature)的构建产物里,4 个 server TU 的 `.o` 不存在,`nm` 全量
+  无 `WebSocketServer`/`SocketServer`/`HttpServer` 符号 —— 消费端不开 `server` 却引用它会链接报错,
+  feature 门控真实生效。
+
+## 8. 后续待办
 
 - **CN 镜像**:有 `mcpp-res` 写权限后,`gtc` 建 `mcpp-res/websocket`、传与 GLOBAL 字节一致的
   `IXWebSocket-12.0.1.tar.gz`,把三平台 url 改写为 `{ GLOBAL, CN }`(sha 不变)。
-- **TLS feature**(可选):索引里有 `compat.openssl`/`compat.mbedtls`,若要支持 wss,可加 feature 把对应
-  TLS TU 与依赖编入 —— 本包刻意先做零依赖纯客户端。
+- **TLS feature**(最后再考虑):索引里有 `compat.openssl`/`compat.mbedtls`,若要支持 wss,可加 feature
+  把对应 TLS TU 与依赖编入(linux+openssl / windows+mbedtls / mac+SecureTransport)。它是唯一会显著
+  拖慢 CI 的选项(openssl 走 install() 重型构建),故排在最后。
 - **C++23 薄封装头**(可选):用户计划稿提到的 `websocket.hpp`(span/format/RAII 薄层)不阻塞本包,可后续单独加。
