@@ -62,6 +62,7 @@ members = [
     "tests/examples/spdlog-compiled",
     "tests/examples/tinyhttps",
     "tests/examples/vulkan",
+    "tests/examples/websocket",
     "tests/examples/tray",
     "tests/examples/yyjson",
     "tests/examples/magic_enum",
