@@ -247,7 +247,12 @@ package = {
         -- `#else` branch returning a null backend. Verified by symbol
         -- inspection, since it links and runs cleanly either way.
         cflags   = { "-include", "mcpp_eui_backends.h" },
-        cxxflags = { "-include", "mcpp_eui_backends.h" },
+        -- `-fno-char8_t` is package-wide since 0.5.5: the Windows-only char8_t
+        -- break of 0.5.3 (parseWindowsSelection) is no longer the only one —
+        -- resolveResourcePath() (platform.cpp:616) and the new Shadertoy TUs
+        -- return path::u8string() as std::string on EVERY platform. Root cause
+        -- is char8_t, not the standard level; everything else stays at c++23.
+        cxxflags = { "-include", "mcpp_eui_backends.h", "-fno-char8_t" },
 
         features = {
             ["vulkan"] = {
@@ -350,23 +355,14 @@ package = {
             -- this never came up before.
             cflags  = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-D_WIN32_WINNT=0x0A00" },
             -- Upstream builds at CMAKE_CXX_STANDARD 17; this index's floor is
-            -- c++23, and one Windows-only line does not survive the move:
-            -- `parseWindowsSelection()` in core/platform/platform.cpp pushes
-            -- `path::u8string()` into a std::vector<std::string>, and C++20
-            -- changed that return type to std::u8string.
-            --
-            -- The root cause is char8_t, not the standard level, so turn off
-            -- exactly that: every STL's <filesystem> selects the u8string()
-            -- return type on `__cpp_char8_t`, which -fno-char8_t undefines.
-            -- The rest of the package stays at c++23 on every platform.
-            --
-            -- Linux and macOS never see this — the code is inside
-            -- `#if defined(_WIN32)`. Worth fixing upstream (`wideToUtf8()`
-            -- already sits eight lines above and does the right thing); until
-            -- then this keeps us on a real upstream release tag rather than a
-            -- fork carrying the patch.
-            cxxflags = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-fno-char8_t",
-                         "-D_WIN32_WINNT=0x0A00" },
+            -- c++23. `-fno-char8_t` is applied PACKAGE-WIDE (base cxxflags)
+            -- since 0.5.5, not here: 0.5.3 only tripped on char8_t inside the
+            -- Windows-only `parseWindowsSelection()`, but 0.5.5's
+            -- resolveResourcePath() and the Shadertoy TUs return
+            -- path::u8string() as std::string on every platform. Worth fixing
+            -- upstream; until then this keeps us on a real upstream release
+            -- tag rather than a fork carrying the patch.
+            cxxflags = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-D_WIN32_WINNT=0x0A00" },
             -- Upstream lists winmm/urlmon/shell32/user32/imm32/pdh and stops
             -- there, because CMake's MSVC default `CMAKE_C_STANDARD_LIBRARIES`
             -- already drags in kernel32/user32/gdi32/shell32/ole32/comdlg32/…
