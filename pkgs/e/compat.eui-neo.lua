@@ -15,11 +15,16 @@
 -- genuinely vendored single-file headers live at its root (stb_image,
 -- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
 --
--- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.3): CORE_SOURCES
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.5): CORE_SOURCES
 -- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
+-- 0.5.5 grew a Shadertoy subsystem: render_backend.h and include/eui/types.h now
+-- include core/render/shadertoy.h unconditionally, and opengl_backend.cpp calls
+-- releaseShaderToys(), so shadertoy.cpp / shadertoy_json.cpp / shadertoy_primitive.cpp
+-- and opengl_shadertoy.cpp are part of the lib, not optional (vulkan_shadertoy.cpp
+-- joins the `vulkan` feature the same way).
 --
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
--- the GitHub tarball's `EUI-NEO-0.5.3/` wrap layer.
+-- the GitHub tarball's `EUI-NEO-0.5.5/` wrap layer.
 package = {
     spec        = "1",
     namespace   = "compat",
@@ -36,6 +41,14 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
+            -- CN mirror for 0.5.5 not published yet (no mcpp-res write access here);
+            -- plain-string url keeps lint green and lets CN users fall back to
+            -- upstream, per docs/cn-mirror.md. Flip to { GLOBAL, CN } once the
+            -- gitcode release exists — sha256 stays the same.
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
         },
         macosx = {
             ["0.5.3"] = {
@@ -43,12 +56,20 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
         },
         windows = {
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
+            },
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
         },
     },
@@ -120,6 +141,9 @@ package = {
             "*/core/render/image_source.cpp",
             "*/core/render/primitive.cpp",
             "*/core/render/render_backend.cpp",
+            "*/core/render/shadertoy.cpp",
+            "*/core/render/shadertoy_json.cpp",
+            "*/core/render/shadertoy_primitive.cpp",
             "*/core/render/stb_image_impl.cpp",
             "*/core/render/text.cpp",
             -- OpenGL backend and the GLFW IME bridge are UNCONDITIONAL sources.
@@ -128,6 +152,7 @@ package = {
             "*/core/render/opengl/opengl_backend.cpp",
             "*/core/render/opengl/opengl_image.cpp",
             "*/core/render/opengl/opengl_primitives.cpp",
+            "*/core/render/opengl/opengl_shadertoy.cpp",
             "*/core/render/opengl/opengl_text.cpp",
             "*/core/platform/ime_bridge.c",
             -- Window layer
@@ -222,7 +247,12 @@ package = {
         -- `#else` branch returning a null backend. Verified by symbol
         -- inspection, since it links and runs cleanly either way.
         cflags   = { "-include", "mcpp_eui_backends.h" },
-        cxxflags = { "-include", "mcpp_eui_backends.h" },
+        -- `-fno-char8_t` is package-wide since 0.5.5: the Windows-only char8_t
+        -- break of 0.5.3 (parseWindowsSelection) is no longer the only one —
+        -- resolveResourcePath() (platform.cpp:616) and the new Shadertoy TUs
+        -- return path::u8string() as std::string on EVERY platform. Root cause
+        -- is char8_t, not the standard level; everything else stays at c++23.
+        cxxflags = { "-include", "mcpp_eui_backends.h", "-fno-char8_t" },
 
         features = {
             ["vulkan"] = {
@@ -233,6 +263,7 @@ package = {
                     "*/core/render/vulkan/vulkan_image.cpp",
                     "*/core/render/vulkan/vulkan_polygon.cpp",
                     "*/core/render/vulkan/vulkan_primitives.cpp",
+                    "*/core/render/vulkan/vulkan_shadertoy.cpp",
                     "*/core/render/vulkan/vulkan_text.cpp",
                 },
                 deps = { ["compat.vulkan"] = "1.4.357.0" },
@@ -324,23 +355,14 @@ package = {
             -- this never came up before.
             cflags  = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-D_WIN32_WINNT=0x0A00" },
             -- Upstream builds at CMAKE_CXX_STANDARD 17; this index's floor is
-            -- c++23, and one Windows-only line does not survive the move:
-            -- `parseWindowsSelection()` in core/platform/platform.cpp pushes
-            -- `path::u8string()` into a std::vector<std::string>, and C++20
-            -- changed that return type to std::u8string.
-            --
-            -- The root cause is char8_t, not the standard level, so turn off
-            -- exactly that: every STL's <filesystem> selects the u8string()
-            -- return type on `__cpp_char8_t`, which -fno-char8_t undefines.
-            -- The rest of the package stays at c++23 on every platform.
-            --
-            -- Linux and macOS never see this — the code is inside
-            -- `#if defined(_WIN32)`. Worth fixing upstream (`wideToUtf8()`
-            -- already sits eight lines above and does the right thing); until
-            -- then this keeps us on a real upstream release tag rather than a
-            -- fork carrying the patch.
-            cxxflags = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-fno-char8_t",
-                         "-D_WIN32_WINNT=0x0A00" },
+            -- c++23. `-fno-char8_t` is applied PACKAGE-WIDE (base cxxflags)
+            -- since 0.5.5, not here: 0.5.3 only tripped on char8_t inside the
+            -- Windows-only `parseWindowsSelection()`, but 0.5.5's
+            -- resolveResourcePath() and the Shadertoy TUs return
+            -- path::u8string() as std::string on every platform. Worth fixing
+            -- upstream; until then this keeps us on a real upstream release
+            -- tag rather than a fork carrying the patch.
+            cxxflags = { "-DEUI_TRAY_WINAPI=1", "-DNOMINMAX", "-D_WIN32_WINNT=0x0A00" },
             -- Upstream lists winmm/urlmon/shell32/user32/imm32/pdh and stops
             -- there, because CMake's MSVC default `CMAKE_C_STANDARD_LIBRARIES`
             -- already drags in kernel32/user32/gdi32/shell32/ole32/comdlg32/…
