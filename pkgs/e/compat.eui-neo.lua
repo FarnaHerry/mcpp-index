@@ -15,11 +15,16 @@
 -- genuinely vendored single-file headers live at its root (stb_image,
 -- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
 --
--- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.3): CORE_SOURCES
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.5): CORE_SOURCES
 -- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
+-- 0.5.5 grew a Shadertoy subsystem: render_backend.h and include/eui/types.h now
+-- include core/render/shadertoy.h unconditionally, and opengl_backend.cpp calls
+-- releaseShaderToys(), so shadertoy.cpp / shadertoy_json.cpp / shadertoy_primitive.cpp
+-- and opengl_shadertoy.cpp are part of the lib, not optional (vulkan_shadertoy.cpp
+-- joins the `vulkan` feature the same way).
 --
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
--- the GitHub tarball's `EUI-NEO-0.5.3/` wrap layer.
+-- the GitHub tarball's `EUI-NEO-0.5.5/` wrap layer.
 package = {
     spec        = "1",
     namespace   = "compat",
@@ -36,6 +41,14 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
+            -- CN mirror for 0.5.5 not published yet (no mcpp-res write access here);
+            -- plain-string url keeps lint green and lets CN users fall back to
+            -- upstream, per docs/cn-mirror.md. Flip to { GLOBAL, CN } once the
+            -- gitcode release exists — sha256 stays the same.
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
         },
         macosx = {
             ["0.5.3"] = {
@@ -43,12 +56,20 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
         },
         windows = {
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
+            },
+            ["0.5.5"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
         },
     },
@@ -120,6 +141,9 @@ package = {
             "*/core/render/image_source.cpp",
             "*/core/render/primitive.cpp",
             "*/core/render/render_backend.cpp",
+            "*/core/render/shadertoy.cpp",
+            "*/core/render/shadertoy_json.cpp",
+            "*/core/render/shadertoy_primitive.cpp",
             "*/core/render/stb_image_impl.cpp",
             "*/core/render/text.cpp",
             -- OpenGL backend and the GLFW IME bridge are UNCONDITIONAL sources.
@@ -128,6 +152,7 @@ package = {
             "*/core/render/opengl/opengl_backend.cpp",
             "*/core/render/opengl/opengl_image.cpp",
             "*/core/render/opengl/opengl_primitives.cpp",
+            "*/core/render/opengl/opengl_shadertoy.cpp",
             "*/core/render/opengl/opengl_text.cpp",
             "*/core/platform/ime_bridge.c",
             -- Window layer
@@ -233,6 +258,7 @@ package = {
                     "*/core/render/vulkan/vulkan_image.cpp",
                     "*/core/render/vulkan/vulkan_polygon.cpp",
                     "*/core/render/vulkan/vulkan_primitives.cpp",
+                    "*/core/render/vulkan/vulkan_shadertoy.cpp",
                     "*/core/render/vulkan/vulkan_text.cpp",
                 },
                 deps = { ["compat.vulkan"] = "1.4.357.0" },
