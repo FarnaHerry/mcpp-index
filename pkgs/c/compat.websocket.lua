@@ -117,6 +117,52 @@ package = {
 
         targets = { ["websocket"] = { kind = "lib" } },
 
+        -- ── Optional components ──────────────────────────────────────────
+        -- The base build is the zero-dependency client above; two components
+        -- can be enabled on top. mcpp features only ADD, so a consumer naming
+        -- one keeps everything else:
+        --
+        --   websocket = "12.0.1"                                   -> client only
+        --   websocket = { …, features = ["server"] }                -> + the server (implies zlib)
+        --   websocket = { …, features = ["zlib"] }                  -> + compression
+        --   websocket = { …, features = ["server", "zlib"] }        -> + both
+        --
+        -- `server` brings the four TUs the base build leaves out. It needs
+        -- nothing external: every IX* header it touches is already compiled
+        -- into the client, and its external includes are stdlib only (checked
+        -- against the four .cpp files). `IXWebSocketServer` derives from
+        -- `SocketServer`, so consumers reach `getPort()` etc. through it.
+        --
+        -- `server` IMPLIES `zlib`: upstream's server enables permessage-deflate
+        -- by default and the transport's extension negotiation is NOT gated on
+        -- IXWEBSOCKET_USE_ZLIB (only the gzip codec is). A server built without
+        -- the define would offer compression its codec cannot perform, so the
+        -- implication keeps every server build capable of what it advertises.
+        --
+        -- `zlib` turns the gzip codec from its no-op into real
+        -- permessage-deflate compression. Only
+        -- IXWebSocketPerMessageDeflateCodec.cpp is gated by
+        -- IXWEBSOCKET_USE_ZLIB; the negotiation logic in
+        -- IXWebSocketPerMessageDeflate.cpp is zlib-free. The define reaches
+        -- this package's own TUs — consumers need no define, they just call
+        -- enablePerMessageDeflate() on their client (and the server enables it
+        -- by default).
+        features = {
+            ["server"] = {
+                implies = { "zlib" },
+                sources = {
+                    "*/ixwebsocket/IXSocketServer.cpp",
+                    "*/ixwebsocket/IXHttpServer.cpp",
+                    "*/ixwebsocket/IXWebSocketServer.cpp",
+                    "*/ixwebsocket/IXWebSocketProxyServer.cpp",
+                },
+            },
+            ["zlib"] = {
+                defines = { "IXWEBSOCKET_USE_ZLIB=1" },
+                deps    = { ["compat.zlib"] = "1.3.2" },
+            },
+        },
+
         -- ── Platform-specific ──────────────────────────────────────────────
         -- Upstream: Threads::Threads on UNIX, wsock32/ws2_32/shlwapi +
         -- _CRT_SECURE_NO_WARNINGS on Windows. shlwapi is only reached from the
