@@ -112,6 +112,20 @@ package = {
             },
         },
         macosx = {
+            ["0.0.53"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.53.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.53/xpkg-0.0.53.tar.gz",
+                },
+                sha256 = "158da808846c09cb8758322828a6175a636d74f570f4ac47575c844f93c20cf8",
+            },
+            ["0.0.52"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.52.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.52/xpkg-0.0.52.tar.gz",
+                },
+                sha256 = "5cfa70af911b31a3c142a0a8e7faee9c56b1655baa5963d3153b1721e1f9c60c",
+            },
             ["0.0.51"] = {
                 url    = {
                     GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.51.tar.gz",
@@ -198,6 +212,20 @@ package = {
             },
         },
         windows = {
+            ["0.0.53"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.53.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.53/xpkg-0.0.53.tar.gz",
+                },
+                sha256 = "158da808846c09cb8758322828a6175a636d74f570f4ac47575c844f93c20cf8",
+            },
+            ["0.0.52"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.52.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.52/xpkg-0.0.52.tar.gz",
+                },
+                sha256 = "5cfa70af911b31a3c142a0a8e7faee9c56b1655baa5963d3153b1721e1f9c60c",
+            },
             ["0.0.51"] = {
                 url    = {
                     GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.51.tar.gz",

@@ -200,6 +200,22 @@ jobs:
       # because it needs the full set of declared identities.
       - name: Lint cross-package references
         run: lua5.4 tests/check_cross_package_refs.lua pkgs/*/*.lua
+      # ── Partial version bumps ────────────────────────────────────────
+      # A bump is a one-line-looking edit that has to land in N platform
+      # sections. Editing `xpm.linux` and reading the file back gives a file
+      # that CONTAINS the new version, so the author -- and any whole-file
+      # grep -- sees success, while the other platforms are left behind. The
+      # failure then surfaces as `<pkg>@<ver> not found` on a platform,
+      # against a file that literally contains that version string.
+      #
+      # Measured 2026-08-06: xpkg 0.0.52 and 0.0.53 were both added to
+      # `xpm.linux` alone; linux CI went green twice while macOS and Windows
+      # failed, and eight checks made from the outside all came back correct
+      # because each asked "is it in the index?" instead of "is it in THIS
+      # platform's section?". Whole-repo, because a partial bump is only
+      # visible by comparing sections against each other.
+      - name: Lint platform version parity
+        run: lua5.4 tests/check_platform_version_parity.lua pkgs/*/*.lua
       # ── Single-source-of-truth grammar check ─────────────────────────
       # `mcpp xpkg parse` uses EXACTLY the resolver's parser, so what
       # passes here is what builds for users of the pinned MCPP_VERSION.
