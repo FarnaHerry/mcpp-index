@@ -519,9 +519,24 @@ jobs:
           {
             printf '{'
             first=1
-            for spec in linux:$(jq -r '[.include[]|select(.platform=="linux")]|length' /tmp/matrix.json) \
-                        macos:$(jq -r '[.include[]|select(.platform=="macos")]|length' /tmp/matrix.json) \
-                        windows:$(jq -r '[.include[]|select(.platform=="windows")]|length' /tmp/matrix.json); do
+            # `.shards`, NOT the number of matrix entries.
+            #
+            # These stopped being the same number the moment linux grew a
+            # second toolchain leg: the platform emits 2 x 3 = 6 entries while
+            # the split is still 3 ways, and every entry carries shard 0..2.
+            # Planning 6 ways and consuming three of them dropped 36 of 65
+            # members on the floor — silently, because a member that is never
+            # assigned is indistinguishable from one that passed. `ffmpeg`,
+            # `opencv-module*`, `catch2-v2` and `openssl` were among them, on
+            # the very run that added the leg meant to test them.
+            #
+            # `.shards` is the value emit() already wrote per entry and the
+            # same one the job reads for its own `matrix.shards`, so plan and
+            # consumer now read one number instead of two that agreed by
+            # accident.
+            for spec in linux:$(jq -r 'first(.include[]|select(.platform=="linux")).shards' /tmp/matrix.json) \
+                        macos:$(jq -r 'first(.include[]|select(.platform=="macos")).shards' /tmp/matrix.json) \
+                        windows:$(jq -r 'first(.include[]|select(.platform=="windows")).shards' /tmp/matrix.json); do
               p=${spec%%:*}; n=${spec##*:}
               [ "$first" = 1 ] || printf ','
               first=0
