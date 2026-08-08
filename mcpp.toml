@@ -33,6 +33,7 @@ members = [
     "tests/examples/ffmpeg",
     "tests/examples/ffmpeg-module",
     "tests/examples/fmtlib.fmt",
+    "tests/examples/gmp",
     "tests/examples/godot-cpp",
     "tests/examples/godot-cpp-module",
     "tests/examples/godot-cpp-module-v10",
