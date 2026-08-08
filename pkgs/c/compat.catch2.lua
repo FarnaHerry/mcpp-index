@@ -29,9 +29,12 @@
 --
 -- Features (sources-only gate):
 --   `main` — compiles a GENERATED TU supplying a default entry point. It
---   branches on __has_include(<catch2/catch_all.hpp>), which exists only in
---   v3, to pick the v3 (Catch::Session) or v2 (CATCH_CONFIG_MAIN) spelling.
---   Excluded by default; request `features = ["main"]`.
+--   branches on __has_include(<catch2/catch_user_config.hpp.in>) — upstream's
+--   CMake template, present only in v3's SOURCE tree and never installed — to
+--   pick the v3 (Catch::Session) or v2 (CATCH_CONFIG_MAIN) spelling. The probe
+--   has to be source-only because __has_include searches the system dirs too;
+--   see the note above the generated TU. Excluded by default; request
+--   `features = ["main"]`.
 --
 --   It deliberately does NOT point at upstream's
 --   src/catch2/internal/catch_main.cpp. That file is matched by the sources
@@ -148,7 +151,7 @@ package = {
             -- and can never be used to detect v2. (On v3 it would be found
             -- and then fail in #include_next, since there is no upstream
             -- catch.hpp behind it — but __has_include never gets that far.)
-            -- The existing discriminator probes catch_all.hpp instead, which
+            -- The discriminator probes catch_user_config.hpp.in instead, which
             -- is unaffected. See the header comment for why per-version
             -- blocks (mcpp#290) are the real answer here.
             ["mcpp_generated/catch2/catch.hpp"] = [==[
@@ -187,8 +190,27 @@ int mcpp_compat_catch2_anchor(void) { return 0; }
 ]==],
             -- The `main` feature's TU. See the header comment for why this is
             -- generated rather than upstream's catch_main.cpp.
+            -- The discriminator probes a file upstream ships as a CMake
+            -- TEMPLATE and never installs: `catch_user_config.hpp.in`. It has
+            -- to be something a SYSTEM Catch2 cannot supply, because
+            -- __has_include searches the system dirs too — and the obvious
+            -- probe, catch_all.hpp, is installed by every distro's catch2
+            -- package. On a box with system Catch2 v3 present, a v2 consumer
+            -- was answered "v3", compiled the Catch::Session entry point and
+            -- died at link time on undefined Catch::Session::Session().
+            --
+            -- Verified on clang 22.1.8 and gcc 16.1.0, all three cases:
+            --   vendored v3 on -I  -> v3      (both probes agree)
+            --   vendored v2 on -I  -> v2      (catch_all.hpp says v3: the bug)
+            --   only system v3     -> v2      (catch_all.hpp says v3)
+            --
+            -- Re-check when bumping v3: if upstream ever materialises this
+            -- file in-tree instead of shipping the .in, or a distro starts
+            -- installing the template, the probe needs another source-only
+            -- marker. mcpp#290's per-version build blocks retire the whole
+            -- question by naming the major outright.
             ["mcpp_generated/catch2_main.cpp"] = [==[
-#if __has_include(<catch2/catch_all.hpp>)
+#if __has_include(<catch2/catch_user_config.hpp.in>)
 // Catch2 v3: the library is compiled in; just drive a session.
 #  include <catch2/catch_session.hpp>
 int main(int argc, char* argv[]) { return Catch::Session().run(argc, argv); }
