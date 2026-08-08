@@ -410,10 +410,10 @@ jobs:
         shell: bash
         run: |
           full=0; [ "$MEMBERS" = "__ALL__" ] && full=1
-          emit() {   # platform os suffix ext mcpp xlings shards
-            for i in $(seq 0 $(( $7 - 1 ))); do
-              printf '{"platform":"%s","os":"%s","suffix":"%s","ext":"%s","mcpp":"%s","xlings":"%s","shard":%d,"shards":%d},' \
-                     "$1" "$2" "$3" "$4" "$5" "$6" "$i" "$7"
+          emit() {   # platform os suffix ext mcpp xlings toolchain shards
+            for i in $(seq 0 $(( $8 - 1 ))); do
+              printf '{"platform":"%s","os":"%s","suffix":"%s","ext":"%s","mcpp":"%s","xlings":"%s","toolchain":"%s","shard":%d,"shards":%d},' \
+                     "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$i" "$8"
             done
           }
           # Shard count follows the WORK, per platform, measured.
@@ -477,9 +477,27 @@ jobs:
           wn=$(shards_for windows 2)
           {
             printf '{"include":['
-            emit linux   ubuntu-latest  linux-x86_64   tar.gz bin/mcpp     registry/bin/xlings     "$ln"
-            emit macos   macos-15       macosx-arm64   tar.gz bin/mcpp     registry/bin/xlings     "$mn"
-            emit windows windows-latest windows-x86_64 zip    bin/mcpp.exe registry/bin/xlings.exe "$wn"
+            # linux runs TWICE: once on mcpp's default toolchain and once on
+            # llvm. Not redundancy — the two differ in a way that decides
+            # whether a descriptor is correct. mcpp's linux default (gcc)
+            # reaches the compiler through --sysroot into a clean xlings
+            # subos, so the HOST /usr/include is not on the search path;
+            # llvm has no sysroot and the host's headers are. compat.ffmpeg
+            # put its vendored source root on -idirafter (below the system
+            # dirs) and was green here for months while being broken on any
+            # developer box with libavutil-dev installed — the gcc leg
+            # structurally cannot see that class of bug.
+            #
+            # Cost, measured: this doubles linux to 6 jobs (2 x 3 shards) at
+            # ~75min each, against a measured linux runner concurrency of 3 —
+            # so the second leg QUEUES behind the first rather than running
+            # beside it, and a full run's linux wall-clock roughly doubles.
+            # That is the price of the coverage; the levers if it hurts are
+            # in the shards_for comment above.
+            emit linux   ubuntu-latest  linux-x86_64   tar.gz bin/mcpp     registry/bin/xlings     default "$ln"
+            emit linux   ubuntu-latest  linux-x86_64   tar.gz bin/mcpp     registry/bin/xlings     llvm    "$ln"
+            emit macos   macos-15       macosx-arm64   tar.gz bin/mcpp     registry/bin/xlings     default "$mn"
+            emit windows windows-latest windows-x86_64 zip    bin/mcpp.exe registry/bin/xlings.exe default "$wn"
             printf ']}'
           } | sed 's/,]}/]}/' > /tmp/matrix.json
           echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
@@ -563,8 +581,10 @@ jobs:
           bash tests/check_graphics_install_side_effects.sh
 
   workspace:
-    # The shard suffix appears only when the platform is actually split.
-    name: workspace (${{ matrix.platform }}${{ matrix.shards == 1 && '' || format(' {0}/{1}', matrix.shard, matrix.shards) }})
+    # The shard suffix appears only when the platform is actually split, and
+    # the toolchain only when it is not mcpp's default — so the existing job
+    # names are unchanged and only the new llvm leg is labelled.
+    name: workspace (${{ matrix.platform }}${{ matrix.toolchain == 'default' && '' || format(' {0}', matrix.toolchain) }}${{ matrix.shards == 1 && '' || format(' {0}/{1}', matrix.shard, matrix.shards) }})
     needs: select
     if: needs.select.outputs.members != ''
     runs-on: ${{ matrix.os }}
@@ -606,7 +626,11 @@ jobs:
           # only a Git-Bash convenience.
           h=$(git ls-files -s -- 'pkgs/**/*.lua' 'tests/**' '.github/workflows/validate.yml' \
               | git hash-object --stdin)
-          echo "REGISTRY_CACHE_KEY=mcpp-registry-${{ runner.os }}-${{ env.MCPP_VERSION }}-$h" >> "$GITHUB_ENV"
+          # matrix.toolchain is in the key: both linux legs are runner.os
+          # Linux, and the cache holds TOOLCHAINS and built compat packages.
+          # Sharing one entry would let the gcc leg's objects answer for the
+          # llvm leg — exactly the confusion this second leg exists to catch.
+          echo "REGISTRY_CACHE_KEY=mcpp-registry-${{ runner.os }}-${{ matrix.toolchain }}-${{ env.MCPP_VERSION }}-$h" >> "$GITHUB_ENV"
       - name: Restore mcpp registry cache
         uses: actions/cache@v4
         with:
@@ -615,7 +639,7 @@ jobs:
           path: ~/.mcpp/registry
           key: ${{ env.REGISTRY_CACHE_KEY }}
           restore-keys: |
-            mcpp-registry-${{ runner.os }}-${{ env.MCPP_VERSION }}-
+            mcpp-registry-${{ runner.os }}-${{ matrix.toolchain }}-${{ env.MCPP_VERSION }}-
       # Host tools built from source (protoc, grpc_cpp_plugin, …).
       #
       # Measured on the run that added grpc-codegen: 636s to build protoc and
@@ -639,9 +663,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.mcpp/build-cache/v1/tool
-          key: mcpp-toolstore-${{ runner.os }}-${{ env.MCPP_VERSION }}-${{ github.run_id }}-${{ matrix.platform }}-${{ matrix.shard }}
+          key: mcpp-toolstore-${{ runner.os }}-${{ matrix.toolchain }}-${{ env.MCPP_VERSION }}-${{ github.run_id }}-${{ matrix.platform }}-${{ matrix.shard }}
           restore-keys: |
-            mcpp-toolstore-${{ runner.os }}-${{ env.MCPP_VERSION }}-
+            mcpp-toolstore-${{ runner.os }}-${{ matrix.toolchain }}-${{ env.MCPP_VERSION }}-
       - name: Download mcpp
         shell: bash
         env:
@@ -687,6 +711,43 @@ jobs:
       # toolchain (index refresh + install + payload check BEFORE the build
       # plans, mcpp#232). The sandbox copy lands in ~/.mcpp/registry, so
       # the cache carries it across runs.
+
+      # ── Make the llvm leg look like a developer's box ─────────────────
+      # A bare GitHub runner has no libav* under /usr/include, so a
+      # descriptor that loses its vendored headers to the host's would still
+      # be green here. That is precisely how compat.ffmpeg's -idirafter hole
+      # survived: nothing in CI had a system ffmpeg to lose to. Installing
+      # the dev headers is what turns this leg into a real test of include
+      # ORDER rather than of include EXISTENCE.
+      #
+      # Deliberately only on the llvm leg. The default leg reaches its
+      # compiler through --sysroot, so it is immune by construction and
+      # installing there would change an existing job's environment for no
+      # coverage. Keeping the blast radius to the new leg means a red here
+      # is always about the thing this leg was added to watch.
+      - name: Install host ffmpeg dev headers (llvm leg only)
+        if: matrix.platform == 'linux' && matrix.toolchain == 'llvm'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libavutil-dev libavcodec-dev libavformat-dev \
+            libavfilter-dev libavdevice-dev libswscale-dev libswresample-dev
+          dpkg -l | grep -E 'libav(util|codec)-dev|libswscale-dev'
+
+      # ── Select the toolchain for this leg ─────────────────────────────
+      # No version pin: `llvm` resolves to whatever the toolchain family's
+      # current release is for the PINNED MCPP_VERSION, which is the version
+      # that mcpp itself vouches for. Pinning a concrete llvm here would fail
+      # hard the day that mcpp release stops shipping it, and the point of
+      # this leg is the ABSENCE of a sysroot, not a particular llvm.
+      - name: Select toolchain
+        if: matrix.toolchain != 'default'
+        shell: bash
+        run: |
+          "$MCPP" toolchain install ${{ matrix.toolchain }}
+          "$MCPP" toolchain default ${{ matrix.toolchain }}
+          "$MCPP" toolchain list
 
       # ── This shard's slice of the plan ────────────────────────────────
       # `select` decided WHAT runs; this decides which part of it runs HERE.
@@ -780,7 +841,10 @@ jobs:
         if: always() && hashFiles('timings.tsv') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: timings-${{ matrix.platform }}-${{ matrix.shard }}
+          # The toolchain is part of the name because upload-artifact@v4
+          # refuses duplicates: without it both linux legs would race to
+          # upload `timings-linux-0` and the second one would fail the job.
+          name: timings-${{ matrix.platform }}-${{ matrix.toolchain }}-${{ matrix.shard }}
           path: timings.tsv
           retention-days: 14
 
@@ -831,10 +895,13 @@ jobs:
             exit 0
           fi
 
-          # Artifact name carries the platform: timings-<platform>-<shard>.
-          for plat in linux macos windows; do
+          # Artifact name carries platform AND toolchain leg:
+          # timings-<platform>-<toolchain>-<shard>. Ranking per LEG, not per
+          # platform: the two linux legs are different builds and averaging
+          # them would describe neither.
+          for leg in linux-default linux-llvm macos-default windows-default; do
             rows=$(mktemp)
-            for f in timings/timings-$plat-*/timings.tsv; do
+            for f in timings/timings-$leg-*/timings.tsv; do
               [ -f "$f" ] && cat "$f" >> "$rows"
             done
             [ -s "$rows" ] || { rm -f "$rows"; continue; }
@@ -842,7 +909,7 @@ jobs:
             total=$(awk -F'\t' '{s += $1} END {print s+0}' "$rows")
             count=$(wc -l < "$rows")
             {
-              echo "### $plat — ${count} member(s), ${total}s of member wall-clock"
+              echo "### $leg — ${count} member(s), ${total}s of member wall-clock"
               echo
               echo "| rank | seconds | share | member | result |"
               echo "|---:|---:|---:|---|---|"
@@ -867,7 +934,15 @@ jobs:
             echo "# <platform>\t<member>\t<seconds> — from run ${{ github.run_id }}"
             echo "# refresh: download the member-timings artifact and replace this file"
             for plat in linux macos windows; do
-              for f in timings/timings-$plat-*/timings.tsv; do
+              # ONLY the default-toolchain leg feeds this table. The llvm leg
+              # runs the SAME members again, so globbing every leg would put
+              # two rows per (platform, member) into the file — `sort -u`
+              # keeps both, since the seconds differ — and shards_for sums
+              # every matching row. Linux work would read as roughly double
+              # and its shard count would be permanently pinned at the cap.
+              # Both legs are planned from these numbers, so the default leg
+              # is the right single baseline.
+              for f in timings/timings-$plat-default-*/timings.tsv; do
                 [ -f "$f" ] || continue
                 awk -F'\t' -v p="$plat" '{ printf "%s\t%s\t%s\n", p, $2, $1 }' "$f"
               done
