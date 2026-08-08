@@ -127,7 +127,19 @@ env:
   # index.toml 的 min_mcpp **不动**。两个会撞的 compat 邻居都是 Form B,所以旧客户端
   # 撞上时是响亮报错而不是静默用错包;下限是一道让整个索引对旧客户端失效的闸门
   # (mcpp#349),只该在描述符真的读不动时抬。这里读得动,差的是解析得对。
-  MCPP_VERSION: "2026.8.6.2"
+  #
+  # 2026.8.8.2 是本 PR 的**前置**,不是顺手升级。
+  #
+  # `compat.glx-runtime` 依赖 mesa,mesa 声明 `xim:glibc@>=2.38`;下限被任何更高
+  # 版本满足,于是安装图形栈会在既有 glibc 旁边**再装一个**。2026.8.8.2 之前的
+  # mcpp 用 `readdir` 的第一项来解析「那个 glibc payload」,编译侧与产物的
+  # interpreter 因此可以指向不同版本 —— 这正是 #179 落地后 `asio-module` 和
+  # `core` 变红、并导致整份改动被 #180 revert 的原因。
+  #
+  # 用早于 2026.8.8.2 的 mcpp 重新落地这份改动,就是在仍会犯这个错的引擎上复现
+  # 事故条件。tests/check_graphics_install_side_effects.sh 也需要它 —— 该测试在
+  # 更旧的 mcpp 上失败是**有意的**。
+  MCPP_VERSION: "2026.8.8.2"
 
 jobs:
   lint:
@@ -508,6 +520,48 @@ jobs:
           echo "plan=$(cat /tmp/plan.json)" >> "$GITHUB_OUTPUT"
           jq . /tmp/plan.json
 
+  # Installing the graphics stack must not change what UNRELATED members link
+  # against. This is the check #179 did not have: every test in this repo asks
+  # about its own package, so nothing asked whether installing one changes
+  # things for everyone else -- and `asio-module` / `core` went red on a
+  # change that never touched them.
+  #
+  # Its own job, on Linux, because it needs a real toolchain and a home it can
+  # watch payloads appear in. It reports INCONCLUSIVE (and fails) rather than
+  # green whenever its preconditions do not hold; see the script.
+  graphics-side-effects:
+    name: "graphics install: no side effects on unrelated members"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download mcpp
+        shell: bash
+        env:
+          MCPP_ARCHIVE: mcpp-${{ env.MCPP_VERSION }}-linux-x86_64.tar.gz
+          MCPP_ROOT: mcpp-${{ env.MCPP_VERSION }}-linux-x86_64
+        run: |
+          curl -L -fsS -o "$MCPP_ARCHIVE" \
+            "https://github.com/mcpp-community/mcpp/releases/download/v${MCPP_VERSION}/${MCPP_ARCHIVE}"
+          tar -xzf "$MCPP_ARCHIVE"
+          root="$PWD/$MCPP_ROOT"
+          # MCPP_HOME is the tarball root, not ~/.mcpp.
+          #
+          # A released mcpp is self-contained: it resolves its registry from
+          # beside its own executable. Copying the payload tree into ~/.mcpp
+          # and pointing MCPP_HOME there therefore watches one home while the
+          # build uses another -- which this check detects and refuses to call
+          # green (it did, on the first run). Aligning them is the fix; the
+          # check was right.
+          echo "MCPP=$root/bin/mcpp" >> "$GITHUB_ENV"
+          echo "MCPP_HOME=$root" >> "$GITHUB_ENV"
+          echo "MCPP_VENDORED_XLINGS=$root/registry/bin/xlings" >> "$GITHUB_ENV"
+      - name: Side-effect check
+        shell: bash
+        run: |
+          "$MCPP" self config --mirror GLOBAL 2>/dev/null || true
+          bash tests/check_graphics_install_side_effects.sh
+
   workspace:
     # The shard suffix appears only when the platform is actually split.
     name: workspace (${{ matrix.platform }}${{ matrix.shards == 1 && '' || format(' {0}/{1}', matrix.shard, matrix.shards) }})
@@ -562,6 +616,32 @@ jobs:
           key: ${{ env.REGISTRY_CACHE_KEY }}
           restore-keys: |
             mcpp-registry-${{ runner.os }}-${{ env.MCPP_VERSION }}-
+      # Host tools built from source (protoc, grpc_cpp_plugin, …).
+      #
+      # Measured on the run that added grpc-codegen: 636s to build protoc and
+      # 660s to build grpc_cpp_plugin — 1296s of a 3363s member, repeated in
+      # every job of every run, because the registry cache above covers
+      # ~/.mcpp/registry and the tool store lives in ~/.mcpp/build-cache.
+      # `protobuf-protoc` and `grpc-module` build the SAME protoc, so a full
+      # run pays for it several times over.
+      #
+      # A coarse rolling key is safe here, which is why this is cheap. The
+      # store is content-addressed by `<pkg>@<version>/<hash>` and mcpp
+      # validates an entry FIELD BY FIELD against the recorded entry.json
+      # (epoch, target, host triple, compiler identity, profile, features,
+      # transitive dependency closure). A stale entry is not used; it is
+      # rebuilt. The worst case of a cache miss-match is the status quo.
+      #
+      # Deliberately NOT build-cache/v1/pkg: 6.0 GB measured locally against
+      # Actions' 10 GB per-repo budget, which would evict the registry cache
+      # this job needs more. The tool store is 116 MB.
+      - name: Cache host tool store
+        uses: actions/cache@v4
+        with:
+          path: ~/.mcpp/build-cache/v1/tool
+          key: mcpp-toolstore-${{ runner.os }}-${{ env.MCPP_VERSION }}-${{ github.run_id }}-${{ matrix.platform }}-${{ matrix.shard }}
+          restore-keys: |
+            mcpp-toolstore-${{ runner.os }}-${{ env.MCPP_VERSION }}-
       - name: Download mcpp
         shell: bash
         env:
@@ -577,6 +657,21 @@ jobs:
           root="$PWD/$MCPP_ROOT"
           mkdir -p "$HOME/.mcpp/registry"
           cp -a "$root/registry/." "$HOME/.mcpp/registry/"
+          # Point mcpp AT the home the caches above cover.
+          #
+          # Without this the copy above is one-way scenery: a released mcpp is
+          # self-contained and resolves its registry from beside its own
+          # executable, so every build used <tarball>/registry while the cache
+          # restored, and saved, ~/.mcpp/registry. Proof from the run that
+          # added grpc-codegen: abseil compiled from
+          # `<tarball>/registry/data/xpkgs/compat-x-abseil/...`, and
+          # xim:glibc@2.44 / xim:python@3.13.12 were downloaded again on a job
+          # that reported a registry cache HIT.
+          #
+          # With MCPP_HOME set, the restored registry is the one in play — so
+          # payloads stop being re-downloaded per job, and the tool store cache
+          # below lands where the build looks for it.
+          echo "MCPP_HOME=$HOME/.mcpp" >> "$GITHUB_ENV"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             echo "MCPP=$(cygpath -m "$root/${{ matrix.mcpp }}")" >> "$GITHUB_ENV"
             echo "MCPP_VENDORED_XLINGS=$(cygpath -m "$root/${{ matrix.xlings }}")" >> "$GITHUB_ENV"

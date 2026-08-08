@@ -69,11 +69,6 @@ if #members == 0 then
     table.sort(members)
 end
 
-if shardCount <= 1 then
-    print(table.concat(members, " "))
-    return
-end
-
 -- ── measured times ────────────────────────────────────────────────────────
 -- Format: <platform>\t<member>\t<seconds>
 local times, samples = {}, {}
@@ -94,6 +89,43 @@ local median = 60
 if #samples > 0 then
     table.sort(samples)
     median = samples[math.ceil(#samples / 2)]
+end
+
+-- ── run order: cheapest first ─────────────────────────────────────────────
+--
+-- Packing and ORDER are different questions. LPT has to consider members
+-- descending or the bins come out lopsided, and that stays exactly as it was;
+-- this only decides the sequence a shard hands to run_members.sh.
+--
+-- Cheapest first so that BREADTH is covered early, and a maintainer can act on
+-- the run before it finishes.
+--
+-- That is the reason, and it is a deliberate one: occasionally a change is
+-- worth merging once the core is demonstrably covered, without waiting out the
+-- tail. A full linux run is 13427s of member wall-clock and four members are
+-- 52% of it (grpc-codegen 3363s, grpc-module 1724s, opencv-module-dnn 1017s,
+-- protobuf-protoc 945s). Ordered this way, ~55 members have reported before
+-- the first heavyweight even starts — so "everything but the four known
+-- expensive ones is green" is a state that exists, early, and can be judged.
+-- With the expensive members leading, the run has no such intermediate state:
+-- it is uninformative for an hour and then complete.
+--
+-- Read the consequence the same way. A shard that hits its timeout now loses
+-- the expensive members rather than the cheap ones — which is the half a
+-- maintainer would choose to skip anyway, few in number and named in
+-- tests/member-timings.tsv.
+local function cheapest_first(list)
+    table.sort(list, function(a, b)
+        local ta, tb = times[a] or median, times[b] or median
+        if ta ~= tb then return ta < tb end
+        return a < b                  -- deterministic across machines
+    end)
+    return list
+end
+
+if shardCount <= 1 then
+    print(table.concat(cheapest_first(members), " "))
+    return
 end
 
 -- ── dependency signature, for affinity ────────────────────────────────────
@@ -165,4 +197,5 @@ if os.getenv("PLAN_SHARDS_DEBUG") then
     end
 end
 
-print(table.concat(shards[shardIndex] and shards[shardIndex].members or {}, " "))
+print(table.concat(
+    cheapest_first(shards[shardIndex] and shards[shardIndex].members or {}), " "))
