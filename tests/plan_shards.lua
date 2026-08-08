@@ -26,9 +26,16 @@
 --      among shards whose load is close, prefer the one already holding
 --      members with overlapping dependencies.
 --
--- Missing timing → the median, so a newly added member is neither assumed
--- free nor assumed huge. No table at all → falls back to round-robin, which
--- is worse but never wrong.
+-- Missing timing → a FIXED default (see DEFAULT_SECONDS), so a newly added
+-- member is neither assumed free nor assumed huge. No table at all → every
+-- member prices the same, which degenerates to round-robin: worse, never
+-- wrong.
+--
+-- The table deliberately holds only the HEAVY members. They are where the
+-- packing decisions actually get made — on linux the top 10 of 67 are 69% of
+-- the total — and listing the other 57 buys a table that goes stale every
+-- time someone adds a test. Verified equivalent: full table and top-10 table
+-- both land the slowest linux shard at 74 minutes.
 --
 -- Measured on the real workspace (linux, 3 shards), LPT against round-robin:
 --
@@ -71,24 +78,58 @@ end
 
 -- ── measured times ────────────────────────────────────────────────────────
 -- Format: <platform>\t<member>\t<seconds>
-local times, samples = {}, {}
+local times = {}
 local tsv = read_file("tests/member-timings.tsv")
 if tsv then
     for line in tsv:gmatch("[^\n]+") do
         if not line:match("^#") then
             local p, m, s = line:match("^(%S+)\t(%S+)\t(%d+)")
-            if p == platform and m then
-                times[m] = tonumber(s)
-                samples[#samples + 1] = tonumber(s)
-            end
+            if p == platform and m then times[m] = tonumber(s) end
         end
     end
 end
 
-local median = 60
-if #samples > 0 then
-    table.sort(samples)
-    median = samples[math.ceil(#samples / 2)]
+-- Price for a member with no row. A FIXED constant, deliberately, and not the
+-- median of whatever the table happens to hold.
+--
+-- The table only carries the HEAVY members now (see its header). Deriving the
+-- default from those samples would take the median OF THE HEAVYWEIGHTS —
+-- measured at 875s on the linux set — and charge every small member that,
+-- which packs far worse than having no table at all. Simulated on the full
+-- 67-member measurement, 4 linux shards, slowest shard:
+--
+--     full 67-row table                    74 min
+--     top-10 table, median-derived default 90 min   <- at the job cap
+--     top-10 table, fixed default          74 min
+--
+-- 86s is the mean of the 57 untimed linux members (median 24s); 90 rounds it.
+-- The choice is not delicate: across defaults from 30s to 300s the slowest
+-- shard stays between 72 and 84 minutes, all under the 90-minute cap. That
+-- insensitivity is the point — it is what lets the table sit untouched while
+-- small members come and go.
+--
+-- What it does NOT absorb is a new member that belongs in the heavy set.
+-- `mysql-connector-cpp` (881s) priced at the default is 13 minutes of work
+-- that the packer cannot see. Adding a heavy newcomer stays a real edit.
+local DEFAULT_SECONDS = 90
+local median = DEFAULT_SECONDS   -- name kept: read as "the price of unknown"
+
+-- `<shard> <count>` of `0 0` prints this platform's TOTAL cost instead of a
+-- shard's members.
+--
+-- The workflow's shards_for needs exactly that number to pick a shard count,
+-- and it needs it computed the same way: same member enumeration, same price
+-- for an untimed member. It used to sum the table's rows directly, which was
+-- equivalent only while the table listed every member. It no longer does —
+-- summing 10 heavy rows and calling it the workload asks for 3 linux shards
+-- where the real work needs 4, and 3 lands the slowest shard at 107 minutes
+-- against a 90-minute cap. Two copies of "how much work is there" drift; this
+-- is the one copy.
+if shardCount == 0 then
+    local total = 0
+    for _, m in ipairs(members) do total = total + (times[m] or DEFAULT_SECONDS) end
+    print(total)
+    return
 end
 
 -- ── run order: cheapest first ─────────────────────────────────────────────

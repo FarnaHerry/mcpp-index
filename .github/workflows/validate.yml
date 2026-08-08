@@ -380,6 +380,18 @@ jobs:
               # changes with it and the rule above selects the right members.
               # So a tools/ edit alone selects nothing rather than forcing a
               # full workspace rebuild.
+              # The timing table decides how work is DISTRIBUTED across
+              # shards, never what gets built — no member's result can change
+              # because a measured number moved. It used to fall through to
+              # the `*)` catch-all below and force a full run, which is the
+              # most expensive way in this workflow to test nothing: the next
+              # full run reads the new numbers anyway.
+              #
+              # Note this makes the file invisible to CI. A malformed row is
+              # then silent, and `plan_shards` prices anything it cannot parse
+              # at the median — the exact failure mode that overflowed a shard
+              # here. Guard it in `lint` if that ever bites.
+              tests/member-timings.tsv) : ;;
               *.md|docs/*|.agents/*|.github/*|tools/*) : ;;
               *) full "unclassified change: $f" ;;
             esac
@@ -441,38 +453,69 @@ jobs:
           # platform and take one shard per ~70 minutes, which leaves ~20
           # minutes of headroom under the 90-minute cap for a cold cache.
           #
-          # The caps are where runner concurrency comes back in: linux 3 (the
-          # measured concurrency — a 4th shard would queue), macOS 2, windows
-          # 2. Past those, more shards buy fit that is already there and pay
-          # another checkout + mcpp download + cache restore.
+          # The caps are where runner concurrency comes back in: linux 4,
+          # macOS 2, windows 2. Past those, more shards buy fit that is
+          # already there and pay another checkout + mcpp download + cache
+          # restore.
           #
-          # Full run, from the table: linux 13570s over 3 -> ~75min/shard
-          # (observed slowest 77), macOS 6922s over 2 -> ~57, windows 8043s
-          # over 2 -> ~67. linux is the tight one — its cap binds before the
-          # ~70-minute target does, so it is the first place to look if a
-          # cold full run starts brushing 90 again. The levers, in order:
-          # raise the linux cap to 4 (costs a queued runner), then the job
+          # linux was 3 — "the measured concurrency, a 4th shard would queue".
+          # That cap outlived its premise twice over: the workspace grew, and
+          # the second toolchain leg means linux emits 2 x N jobs, so it
+          # queues at any N. It is now 4, which is what the formula asks for.
+          #
+          # Full run, from the table: linux 15891s over 4 -> ~74min slowest
+          # shard, macOS 6922s over 2 -> ~57, windows 8043s over 2 -> ~67.
+          #
+          # linux is still the tight one, and the number to watch is the
+          # SLOWEST shard against the 90-minute job cap, not the average.
+          # Simulated on the current table: 3-way 98min, 4-way 74, 5-way 60.
+          # The levers, in order: raise the linux cap to 5, then the job
           # timeout.
+          #
+          # Keep tests/member-timings.tsv fresh — that is not housekeeping. An
+          # untimed member is priced at the MEDIAN, so a heavy newcomer packs
+          # like a trivial one. `mysql-connector-cpp` (881s) and
+          # `libmysqlclient` (329s) landed on shard 0 next to grpc-codegen
+          # exactly that way and pushed it past the cap, and the stale table
+          # then hid the overflow by under-counting the total.
+          # `plan_shards.lua <platform> 0 0` reports the platform's total cost.
+          #
+          # This used to sum the timing table's rows inline, which was the same
+          # answer only while the table listed every member. It now lists just
+          # the heavy ones, so summing rows measures a fraction of the work:
+          # 10965s instead of 16095s on linux, i.e. 3 shards where 4 are
+          # needed, i.e. a slowest shard of 107 minutes against a 90-minute
+          # cap. Asking plan_shards keeps ONE definition of both "which members
+          # are there" and "what does an untimed one cost".
+          #
+          # The estimate is tuned on linux (16095s vs 15891s measured, +1.3%).
+          # macOS and windows members are cheaper on average than the default,
+          # so their totals come out high — harmless here because both are
+          # already at their cap, and erring toward more shards is the safe
+          # direction. Revisit if either cap moves.
           shards_for() {   # platform cap -> shard count
-            local secs
-            secs=$(XPLAT="$1" lua5.4 -e '
-              local plat = os.getenv("XPLAT")
-              local sel, all = {}, (os.getenv("MEMBERS") == "__ALL__")
-              if not all then
-                for m in (os.getenv("MEMBERS") or ""):gmatch("%S+") do sel[m] = true end
-              end
-              local total = 0
-              for line in io.lines("tests/member-timings.tsv") do
-                local p, m, s = line:match("^(%S+)\t(%S+)\t(%d+)$")
-                if p == plat and m and (all or sel[m]) then total = total + tonumber(s) end
-              end
-              print(total)')
+            local secs sel=""
+            [ "$MEMBERS" = "__ALL__" ] || sel="$MEMBERS"
+            secs=$(lua5.4 tests/plan_shards.lua "$1" 0 0 $sel)
             local n=$(( secs / 4200 + 1 ))
             [ "$n" -gt "$2" ] && n="$2"
             echo "$1 work: ${secs}s (measured) -> $n shard(s)" >&2
             echo "$n"
           }
-          ln=$(shards_for linux 3)
+          # linux 3 -> 4. The cap was the binding constraint, not the ~70min
+          # target: `secs / 4200 + 1` asks for 4 on the refreshed table
+          # (15891s) and has been getting clamped back to 3. Simulated on that
+          # table, slowest shard: 3-way 98min (OVER the 90min job cap — and
+          # `linux default 0/3` was in fact cancelled at 90min on run
+          # 31266814148), 4-way 74min, 5-way 60min. 4 is the formula's own
+          # answer and leaves 16 minutes for a cold cache; 5 is there if that
+          # stops being enough.
+          #
+          # This does cross the concurrency line the old comment drew: with two
+          # toolchain legs linux now emits 8 jobs against a measured runner
+          # concurrency of 3, so shards queue. Queuing is the right trade —
+          # back-to-back shards still finish, a shard over the cap does not.
+          ln=$(shards_for linux 4)
           mn=$(shards_for macos 2)
           wn=$(shards_for windows 2)
           {
@@ -945,25 +988,37 @@ jobs:
           # silently absorb a one-off slow runner. Refresh it deliberately —
           # download this artifact and replace tests/member-timings.tsv when
           # the numbers have actually moved.
+          # Top 10 per platform, not every member.
+          #
+          # plan_shards prices anything absent at a fixed default, and the
+          # packing decisions are made by the heavy members anyway — on linux
+          # the top 10 of 67 are 69% of the total, and dropping the other 57
+          # moves the slowest shard by 0 minutes. A table that lists everyone
+          # goes stale the moment someone adds a test; one that lists ten only
+          # goes stale when the heavy set actually changes. That is the whole
+          # point: adding a member must not require touching this file.
           {
-            echo "# <platform>\t<member>\t<seconds> — from run ${{ github.run_id }}"
-            echo "# refresh: download the member-timings artifact and replace this file"
+            echo "# <platform>\t<member>\t<seconds> — the HEAVY members only, top 10"
+            echo "# per platform, from run ${{ github.run_id }}. Everything else is"
+            echo "# priced at plan_shards.lua's fixed default; adding a test does NOT"
+            echo "# require touching this file. Refresh when a member becomes heavy"
+            echo "# enough to enter the top 10, or one of these numbers moves."
+            # ONLY the default-toolchain leg feeds this table. The llvm leg
+            # runs the SAME members again, so globbing every leg would put two
+            # rows per (platform, member) into the file — `sort -u` keeps both,
+            # since the seconds differ. Both legs are planned from these
+            # numbers, so the default leg is the right single baseline.
+            #
+            # Then: heaviest first, keep 10. `sort -u` before that so a member
+            # reported by two shards cannot occupy two of the ten slots.
             for plat in linux macos windows; do
-              # ONLY the default-toolchain leg feeds this table. The llvm leg
-              # runs the SAME members again, so globbing every leg would put
-              # two rows per (platform, member) into the file — `sort -u`
-              # keeps both, since the seconds differ — and shards_for sums
-              # every matching row. Linux work would read as roughly double
-              # and its shard count would be permanently pinned at the cap.
-              # Both legs are planned from these numbers, so the default leg
-              # is the right single baseline.
               for f in timings/timings-$plat-default-*/timings.tsv; do
                 [ -f "$f" ] || continue
                 awk -F'\t' -v p="$plat" '{ printf "%s\t%s\t%s\n", p, $2, $1 }' "$f"
-              done
+              done | sort -u | sort -t"$(printf '\t')" -k3,3nr | head -10
             done
-          } | sort -u > member-timings.tsv
-          echo "wrote member-timings.tsv ($(grep -vc '^#' member-timings.tsv) rows)"
+          } > member-timings.tsv
+          echo "wrote member-timings.tsv ($(grep -vc '^#' member-timings.tsv) rows, top 10/platform)"
 
       - name: Upload the timing table for the next run's sharding
         if: always() && hashFiles('member-timings.tsv') != ''
