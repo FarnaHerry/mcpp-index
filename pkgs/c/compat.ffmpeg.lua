@@ -4,8 +4,13 @@
 -- Data/logic separation (mcpp 0.0.100 design): sources glob-compressed, list
 -- files shared when identical, config.{h,asm}/config_components.{h,asm} split
 -- into a neutral <name>.base + tiny per-OS deltas. ffmpeg source root sits on
--- include_dirs_after (-idirafter, mcpp#249) so libc++ <version> is not shadowed
--- by ffmpeg's VERSION file on case-insensitive macOS.
+-- include_dirs_after (-idirafter, mcpp#249) on macOS/windows so libc++
+-- <version> is not shadowed by ffmpeg's VERSION file on their case-insensitive
+-- filesystems. On linux it is on plain include_dirs INSTEAD: -idirafter ranks
+-- below the system dirs, so a host-installed ffmpeg (/usr/include/x86_64-linux-
+-- gnu on Debian/Ubuntu) would otherwise outrank the vendored 8.1.2 tree. Never
+-- both -- a dir named on -I and -idirafter dedupes to the last one, cancelling
+-- the -I.
 package = {
     spec = "1", namespace = "compat", name = "ffmpeg",
     description = "FFmpeg 8.1.2 multimedia libraries, full source build (LGPL profile, multi-platform)",
@@ -34,9 +39,6 @@ package = {
             "mcpp_generated/libavfilter",
             "mcpp_generated/libavdevice",
             "*/libavcodec",
-        },
-        include_dirs_after = {
-            "*",
         },
         cflags = {
             "-DHAVE_AV_CONFIG_H",
@@ -7791,6 +7793,7 @@ static const FFOutputFormat * const muxer_list[] = {
                 "*/libavfilter/x86",
                 "*/libswscale/x86",
                 "*/libswresample/x86",
+                "*",
             },
             flags = {
                 { glob = "**/*.asm", asmflags = { "-Pconfig.asm" } },
@@ -8254,6 +8257,9 @@ static const URLProtocol * const url_protocols[] = {
             ldflags = {
                 "-lm",
             },
+            include_dirs_after = {
+                "*",
+            },
             sources = {
                 "*/libavcodec/{012v,4xm,8bps,8svx,a64multienc,aac_ac3_parser,aac_parser,aaccoder,aacenc,aacenc_is,aacenc_tns,aacenctab,aacps_common,aacps_fixed,aacps_float,aacpsdsp_fixed,aacpsdsp_float,aacpsy,aacsbr,aacsbr_fixed,aactab,aandcttab,aasc,ac3,ac3_channel_layout_tab,ac3_parser,ac3dec_data,ac3dec_fixed,ac3dec_float,ac3dsp,ac3enc,ac3enc_fixed,ac3enc_float,ac3tab,acelp_filters,acelp_pitch_delay,acelp_vectors,adpcm,adpcm_data,adpcmenc,adts_header,adts_parser,adx,adx_parser,adxdec,adxenc,agm,aic,alac,alac_data,alacdsp,alacenc,aliaspixdec,aliaspixenc,allcodecs,alsdec,amr_parser,amrnbdec,amrwbdec,anm,ansi,aom_film_grain,apac,apedec,aptx,aptxdec,aptxenc,apv_decode,apv_dsp,apv_entropy,apv_parser,arbc,argo,ass,ass_split,assdec,assenc,asv,asvdec,asvenc,atrac,atrac1,atrac3,atrac3plus,atrac3plusdec,atrac3plusdsp,atrac9dec,atsc_a53,audio_frame_queue,audiodsp,aura,av1_parse,av1_parser,av1dec,avcodec,avdct,avrndec,avs,avs2,avs2_parser,avs3_parser,avuidec,avuienc,bethsoftvideo,bfi,bgmc,bink,binkaudio,binkdsp,bintext,bitpacked_dec,bitpacked_enc,bitstream,bitstream_filters,blockdsp,bmp,bmp_parser,bmpenc,bmvaudio,bmvvideo,bonk,brenderpix,bsf,bswapdsp,c93,cabac,canopus,cavs,cavs_parser,cavsdata,cavsdec,cavsdsp,cbrt_data,cbrt_data_fixed,cbrt_tablegen_common,cbs,cbs_apv,cbs_av1,cbs_bsf,cbs_h264,cbs_h2645,cbs_h265,cbs_h266,cbs_lcevc,cbs_mpeg2,cbs_sei,cbs_vp8,cbs_vp9,ccaption_dec,cdgraphics,cdtoons,cdxl,celp_filters,celp_math,cfhd,cfhddata,cfhddsp,cfhdenc,cfhdencdsp,cga_data,cinepak,cinepakenc,clearvideo,cljrdec,cljrenc,cllc,cngdec,cngenc,codec_desc,codec_par,cook,cook_parser,cpia,cri,cri_parser,cscd,cyuv,d3d11va,dca,dca_core,dca_exss,dca_lbr,dca_parser,dca_sample_rate_tab,dca_xll,dcaadpcm,dcadata,dcadct,dcadec,dcadsp,dcaenc,dcahuff,dct32_fixed,dct32_float,dds,decode,dfa,dfpwmdec,dfpwmenc,dirac,dirac_arith,dirac_dwt,dirac_parser,dirac_vlc,diracdec,diracdsp,diractab,dnxhd_parser,dnxhddata,dnxhddec,dnxhdenc,dnxuc_parser,dolby_e,dolby_e_parse,dolby_e_parser,dovi_rpu,dovi_rpudec,dovi_rpuenc,dpcm,dpx,dpx_parser,dpxenc,dsd,dsddec,dsicinaudio,dsicinvideo,dss_sp,dstdec,dv,dv_profile,dvaudio_parser,dvaudiodec,dvbsub_parser,dvbsubdec,dvbsubenc,dvd_nav_parser,dvdata,dvdec,dvdsub,dvdsub_parser,dvdsubdec,dvdsubenc,dvenc,dxtory,dxv,dxvenc,dynamic_hdr_vivid,eac3_data,eac3enc,eacmv,eaidct,eamad,eatgq,eatgv,eatqi,elbg,encode,error_resilience,escape124,escape130,evc_parse,evc_parser,evc_ps,evrcdec,executor,exif,faandct,faanidct,fastaudio,faxcompr,fdctdsp,ffv1,ffv1_parse,ffv1_parser,ffv1dec,ffv1enc,ffwavesynth,fic,fits,fitsdec,fitsenc,flac,flac_parser,flacdata,flacdec,flacdsp,flacenc,flacencdsp,flicvideo,flvdec,flvenc,fmtconvert,fmvc,frame_thread_encoder,fraps,frwu,ftr,ftr_parser,g722,g722dec,g722dsp,g722enc,g723_1,g723_1_parser,g723_1dec,g723_1enc,g726,g728dec,g729_parser,g729dec,g729postfilter,gdv,gemdec,get_buffer,gif,gif_parser,gifdec,golomb,gsm_parser,gsmdec,gsmdec_data,h261,h261_parser,h261data,h261dec,h261enc,h263,h263_parser,h263data,h263dec,h263dsp,h2645_parse,h2645_sei,h2645_vui,h2645data,h264_cabac,h264_cavlc,h264_direct,h264_levels,h264_loopfilter,h264_mb,h264_parse,h264_parser,h264_picture,h264_ps,h264_refs,h264_sei,h264_slice,h264chroma,h264data,h264dec,h264dsp,h264idct,h264pred,h264qpel,h265_profile_level,h274,hap,hapdec,hashtable,hcadec,hcom,hdr_parser,hdrdec,hdrenc,hnm4video,hpeldsp,hq_common,hq_hqa,hq_hqadsp,hqx,hqxdsp,htmlsubtitles,huffman,huffyuv,huffyuvdec,huffyuvdsp,huffyuvenc,huffyuvencdsp,idcinvideo,idctdsp,iff,ilbcdec,imc,imgconvert,imm4,imm5,imx,indeo2,indeo3,indeo4,indeo5,intelh263dec,interplayacm,interplayvideo,intrax8,intrax8dsp,ipu_parser,ituh263dec,ituh263enc,ivi,ivi_dsp,j2kenc,jacosubdec,jfdctfst,jfdctint,jni,jpeg2000,jpeg2000_parser,jpeg2000dec,jpeg2000dsp,jpeg2000dwt,jpeg2000htdec,jpegls,jpeglsdec,jpeglsenc,jpegquanttables,jpegtables,jpegxl_parse,jpegxl_parser,jpegxs_parser,jrevdct,jvdec,kbdwin,kgv1dec,kmvc,lagarith,lagarithrac,latm_parser,lcevc_parser,lcevctab,lcldec,leaddec,ljpegenc,loco,lossless_audiodsp,lossless_videodsp,lossless_videoencdsp,lpc,lsp,lzf,lzw,lzwenc,m101,mace,magicyuv,magicyuvenc,mathtables,mdec,me_cmp,mediacodec,metasound,microdvddec,midivid,mimic,misc4,misc4_parser,mjpeg_parser,mjpegbdec,mjpegdec,mjpegdec_common,mjpegenc,mjpegenc_common,mjpegenc_huffman,mlp,mlp_parse,mlp_parser,mlpdec,mlpdsp,mlpenc,mlz,mmvideo,mobiclip,motion_est,motionpixels,movtextdec,movtextenc,mpc,mpc7,mpc8,mpeg12,mpeg12data,mpeg12dec,mpeg12enc,mpeg12framerate,mpeg4audio,mpeg4audio_sample_rates,mpeg4video,mpeg4video_parser,mpeg4videodec,mpeg4videodsp,mpeg4videoenc,mpeg_er,mpegaudio,mpegaudio_parser,mpegaudiodata,mpegaudiodec_common,mpegaudiodec_fixed,mpegaudiodec_float,mpegaudiodecheader,mpegaudiodsp,mpegaudiodsp_data,mpegaudiodsp_fixed,mpegaudiodsp_float,mpegaudioenc,mpegaudiotabs,mpegpicture,mpegutils,mpegvideo,mpegvideo_dec,mpegvideo_enc,mpegvideo_motion,mpegvideo_parser,mpegvideo_unquantize,mpegvideodata,mpegvideoencdsp,mpl2dec,mqc,mqcdec,mqcenc,msgsmdec,msmpeg4,msmpeg4_vc1_data,msmpeg4data,msmpeg4dec,msmpeg4enc,msp2dec,msrle,msrledec,msrleenc,mss1,mss12,mss2,mss2dsp,mss3,mss34dsp,mss4,msvideo1,msvideo1enc,mv30,mvcdec,mxpegdec,nellymoser,nellymoserdec,nellymoserenc,notchlc,null,nuv,on2avc,on2avcdata,options,osq,packet,pafaudio,pafvideo,pamenc,parser,parsers,pcm,pcm-bluray,pcm-blurayenc,pcm-dvd,pcm-dvdenc,pcx,pcxenc,pgssubdec,pgxdec,photocd,pictordec,pixblockdsp,pixlet,png_parser,pnm,pnm_parser,pnmdec,pnmenc,profiles,prores_parser,prores_raw,prores_raw_parser,proresdata,proresdec,proresdsp,proresenc_anatoliy,proresenc_kostya,proresenc_kostya_common,prosumer,psd,psymodel,pthread,pthread_frame,pthread_slice,ptx,qcelpdec,qdm2,qdmc,qdrw,qoadec,qoi_parser,qoidec,qoienc,qpeg,qpeldsp,qsv_api,qtrle,qtrleenc,r210dec,r210enc,ra144,ra144dec,ra144enc,ra288,ralf,rangecoder,ratecontrol,raw,rawdec,rawenc,realtextdec,rka,rl,rl2,rle,roqaudioenc,roqvideo,roqvideodec,roqvideoenc,rpza,rpzaenc,rtjpeg,rtv1,rv10,rv10enc,rv20enc,rv30,rv30dsp,rv34,rv34_parser,rv34dsp,rv40,rv40dsp,rv60dec,rv60dsp,s302m,s302menc,samidec,sanm,sbc,sbc_parser,sbcdec,sbcdsp,sbcenc,sbrdsp,sbrdsp_fixed,scpr,sga,sgidec,sgienc,sgirledec,sheervideo,shorten,simple_idct,sinewin,sipr,sipr16k,sipr_parser,siren,smacker,smc,smcenc,smpte_436m,snappy,snow,snow_dwt,snowdec,snowenc,sonic,sp5xdec,speedhq,speedhqdec,speedhqenc,speexdec,srtdec,srtenc,startcode,subviewerdec,sunrast,sunrastenc,svq1,svq1dec,svq1enc,svq3,synth_filter,tak,tak_parser,takdec,takdsp,targa,targa_y216dec,targaenc,textdec,texturedsp,texturedspenc,threadprogress,tiertexseqv,tiff,tiff_common,tiffenc,tmv,to_upper4,tpeldsp,truemotion1,truemotion2,truemotion2rt,truespeech,tscc2,tta,ttadata,ttadsp,ttaenc,ttaencdsp,ttmlenc,twinvq,twinvqdec,txd,ulti,utils,utvideodec,utvideodsp,utvideoenc,v210dec,v210enc,v210x,v308dec,v308enc,v408dec,v408enc,v410dec,v410enc,vb,vble,vbndec,vbnenc,vc1,vc1_block,vc1_loopfilter,vc1_mc,vc1_parser,vc1_pred,vc1data,vc1dec,vc1dsp,vc2enc,vc2enc_dwt,vcr1,version,videodsp,vima,vlc,vmdaudio,vmdvideo,vmixdec,vmnc,vorbis,vorbis_data,vorbis_parser,vorbisdec,vorbisdsp,vorbisenc,vp3,vp3_parser,vp3dsp,vp5,vp56,vp56data,vp5dsp,vp6,vp6dsp,vp8,vp8_parser,vp8data,vp8dsp,vp9,vp9_parser,vp9block,vp9data,vp9dsp,vp9dsp_10bpp,vp9dsp_12bpp,vp9dsp_8bpp,vp9lpf,vp9mvs,vp9prob,vp9recon,vpx_rac,vqavideo,vqcdec,vvc_parser,wavarc,wavpack,wavpackdata,wavpackenc,wbmpdec,wbmpenc,webp,webp_parser,webvttdec,webvttenc,wma,wma_common,wma_freqs,wmadec,wmaenc,wmalosslessdec,wmaprodec,wmavoice,wmv2data,wmv2dec,wmv2dsp,wmv2enc,wnv1,wrapped_avframe,ws-snd1,xan,xbm_parser,xbmdec,xbmenc,xface,xfacedec,xfaceenc,xiph,xl,xma_parser,xpmdec,xsubdec,xsubenc,xvididct,xwd_parser,xwddec,xwdenc,xxan,y41pdec,y41penc,ylc,yop,yuv4dec,yuv4enc}.c",
                 "*/libavcodec/aac/{aacdec,aacdec_ac,aacdec_fixed,aacdec_float,aacdec_lpd,aacdec_tab,aacdec_usac,aacdec_usac_mps212}.c",
@@ -8577,6 +8583,9 @@ static const URLProtocol * const url_protocols[] = {
                 "-lstrmiids",
                 "-luuid",
                 "-lshlwapi",
+            },
+            include_dirs_after = {
+                "*",
             },
             include_dirs = {
                 "*/libavutil/x86",

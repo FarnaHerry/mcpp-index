@@ -118,10 +118,46 @@ package = {
 
         -- Union of both layouts. v2 resolves */single_include, v3 resolves
         -- */src; the other one matches nothing and is skipped. mcpp_generated
-        -- carries catch2/catch_user_config.hpp for v3.
-        include_dirs = { "*/single_include", "*/src", "mcpp_generated" },
+        -- carries catch2/catch_user_config.hpp for v3 and the v2 <new> shim.
+        --
+        -- ORDER MATTERS: mcpp_generated goes FIRST so the shim below is found
+        -- before upstream's own catch2/catch.hpp, which it then reaches with
+        -- #include_next. This is the only lever available — a descriptor's
+        -- cflags do not reach CONSUMER translation units (verified: a consumer
+        -- TU gets the include_dirs and -std, nothing else), and the consumer is
+        -- exactly who includes catch.hpp.
+        include_dirs = { "mcpp_generated", "*/single_include", "*/src" },
 
         generated_files = {
+            -- v2 only, and only because upstream 2.13.10 is wrong: its
+            -- single header calls `new(std::nothrow)` twice (catch.hpp:977
+            -- and :14594) and never includes <new>. libstdc++ happens to
+            -- drag <new> in through another header, so gcc has always been
+            -- green; libc++ does not, so every clang consumer fails with
+            -- "no member named 'nothrow' in namespace 'std'". Catch2 v2 is
+            -- EOL upstream, so this is not getting fixed there.
+            --
+            -- A shim rather than a patched copy of the 17k-line header: it
+            -- keeps the sha256-pinned tarball as the only source of truth.
+            -- #include_next resumes the search AFTER this file's directory,
+            -- which is why mcpp_generated must sort first in include_dirs.
+            --
+            -- CAVEAT for whoever touches the v2/v3 discriminator: this file
+            -- is on the include path for BOTH majors, so
+            -- `__has_include(<catch2/catch.hpp>)` is now unconditionally true
+            -- and can never be used to detect v2. (On v3 it would be found
+            -- and then fail in #include_next, since there is no upstream
+            -- catch.hpp behind it — but __has_include never gets that far.)
+            -- The existing discriminator probes catch_all.hpp instead, which
+            -- is unaffected. See the header comment for why per-version
+            -- blocks (mcpp#290) are the real answer here.
+            ["mcpp_generated/catch2/catch.hpp"] = [==[
+#ifndef MCPP_COMPAT_CATCH2_NOTHROW_SHIM
+#define MCPP_COMPAT_CATCH2_NOTHROW_SHIM
+#include <new>
+#include_next <catch2/catch.hpp>
+#endif
+]==],
             -- v3 only. Upstream ships catch_user_config.hpp.in and lets CMake
             -- materialise it. Only the two VALUE defines are mandatory —
             -- everything else in the .in is a #cmakedefine, i.e. absent means

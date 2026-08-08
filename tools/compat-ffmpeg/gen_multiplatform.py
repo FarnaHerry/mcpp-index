@@ -11,8 +11,12 @@ Reads per-OS snapshot dirs and emits ONE descriptor, aggressively slimmed:
                      <name> that #includes the base and adds only its deltas
                      (every CONFIG_/HAVE_ macro is an independent define, so a
                      macro is in the base XOR exactly one delta — no redef)
-  * ffmpeg source root ("*", "*/libavcodec") → include_dirs_after (mcpp#249
-                     -idirafter, so libc++ <version> wins over ffmpeg VERSION)
+  * ffmpeg source root → per-OS: include_dirs_after on macosx/windows (mcpp#249
+                     -idirafter, so libc++ <version> wins over ffmpeg VERSION),
+                     plain include_dirs on linux, so a host-installed ffmpeg in
+                     /usr/include cannot outrank the vendored tree. Never both
+                     at once — the compiler dedupes to the last position and
+                     the -I would be cancelled (see ROOT_ON_PLAIN_I)
 Self-checks: per OS, base∪delta reconstructs the original #define set exactly.
 """
 import sys, re
@@ -43,6 +47,33 @@ NEUTRAL_INCLUDE = ["mcpp_generated", "mcpp_generated/libavcodec", "mcpp_generate
 # style includes need it there (on -idirafter, windows clang-MSVC fails to find
 # them, e.g. opus/parser.c → ParseContext undefined).
 ROOT_INCLUDE_AFTER = ["*"]
+# ...but -idirafter ranks BELOW the system include dirs, and that is a hole on
+# any host that has ffmpeg dev headers installed. Debian/Ubuntu put them in
+# /usr/include/x86_64-linux-gnu (multiarch, a DEFAULT search dir), so with only
+# -idirafter the vendored 8.1.2 tree loses every `#include "libavutil/..."` to
+# the host's ffmpeg. That is not a graceful downgrade: the global
+# -DHAVE_AV_CONFIG_H below makes the host's PUBLIC headers pull private ones
+# the dev package does not ship ('x86/bswap.h', libavutil/internal.h), and the
+# 6.x/8.x type skew hits too (incomplete `enum AVAlphaMode`, SwsContext missing
+# its typedef). It stayed invisible because the toolchain that built this in CI
+# and locally was gcc with --sysroot into a clean xlings subos, where no libav*
+# exists; switching to llvm (no sysroot) exposes the host tree.
+#
+# So the root is placed PER OS — and it has to be one or the other, never both:
+# a directory named on -I *and* -idirafter is deduplicated by the compiler down
+# to its LAST occurrence, so keeping a redundant -idirafter copy silently
+# cancels the -I and the system headers win anyway. Verified on clang 22.1.8:
+# identical command line, dropping only the duplicate -idirafter, compiles.
+#
+#   linux   → plain -I. Case-sensitive filesystem, so ffmpeg's VERSION file can
+#             never shadow libc++ <version>; and it is the one platform with a
+#             system ffmpeg to lose to.
+#   macosx  → -idirafter. Case-insensitive APFS/HFS+ — plain -I is exactly what
+#             #249 fixed. Homebrew ffmpeg lives outside the default search path,
+#             so there is nothing to outrank anyway.
+#   windows → -idirafter. NTFS is case-insensitive too, so -I would bring #249
+#             straight back, and MSVC/clang-cl system dirs carry no libav*.
+ROOT_ON_PLAIN_I = {"linux"}
 X86_INCLUDE = ["*/libavutil/x86", "*/libavcodec/x86", "*/libavfilter/x86",
     "*/libswscale/x86", "*/libswresample/x86"]
 NEUTRAL_CFLAGS = ["-DHAVE_AV_CONFIG_H", "-D_ISOC11_SOURCE", "-D_FILE_OFFSET_BITS=64",
@@ -207,8 +238,16 @@ def per_os_block(o):
     srcs = compress_sources(raw)
     parts = [f'            cflags = {L(PER_OS_CFLAGS[o], 12)},',
              f'            ldflags = {L(PER_OS_LDFLAGS[o], 12)},']
+    # Root last: it must keep ranking below '*/libavcodec' (neutral) and the
+    # x86 dirs, which is the order the -idirafter form already had. Only its
+    # position relative to the SYSTEM dirs changes.
+    per_os_inc = (X86_INCLUDE if o in X86 else []) + (
+        ROOT_INCLUDE_AFTER if o in ROOT_ON_PLAIN_I else [])
+    if o not in ROOT_ON_PLAIN_I:
+        parts.append(f'            include_dirs_after = {L(ROOT_INCLUDE_AFTER, 12)},')
+    if per_os_inc:
+        parts.append(f'            include_dirs = {L(per_os_inc, 12)},')
     if o in X86:
-        parts.append(f'            include_dirs = {L(X86_INCLUDE, 12)},')
         parts.append('            flags = {\n                { glob = "**/*.asm", asmflags = { "-Pconfig.asm" } },\n            },')
     parts.append(f'            sources = {L(srcs, 12)},')
     parts.append('            generated_files = ' + gen_block(per_os_gen[o], 12))
@@ -231,8 +270,13 @@ lua = f'''-- Multi-platform (linux-x86_64 + macosx-arm64 + windows-x86_64) FFmpe
 -- Data/logic separation (mcpp 0.0.100 design): sources glob-compressed, list
 -- files shared when identical, config.{{h,asm}}/config_components.{{h,asm}} split
 -- into a neutral <name>.base + tiny per-OS deltas. ffmpeg source root sits on
--- include_dirs_after (-idirafter, mcpp#249) so libc++ <version> is not shadowed
--- by ffmpeg's VERSION file on case-insensitive macOS.
+-- include_dirs_after (-idirafter, mcpp#249) on macOS/windows so libc++
+-- <version> is not shadowed by ffmpeg's VERSION file on their case-insensitive
+-- filesystems. On linux it is on plain include_dirs INSTEAD: -idirafter ranks
+-- below the system dirs, so a host-installed ffmpeg (/usr/include/x86_64-linux-
+-- gnu on Debian/Ubuntu) would otherwise outrank the vendored 8.1.2 tree. Never
+-- both -- a dir named on -I and -idirafter dedupes to the last one, cancelling
+-- the -I.
 package = {{
     spec = "1", namespace = "compat", name = "{NAME}",
     description = "FFmpeg {VER} multimedia libraries, full source build (LGPL profile, multi-platform)",
@@ -244,7 +288,6 @@ package = {{
         c_standard = "c17",
         targets = {{ ffmpeg = {{ kind = "lib" }} }},
         include_dirs = {L(NEUTRAL_INCLUDE, 8)},
-        include_dirs_after = {L(ROOT_INCLUDE_AFTER, 8)},
         cflags = {L(NEUTRAL_CFLAGS, 8)},
         flags = {{
 {chr(10).join(bflags)}

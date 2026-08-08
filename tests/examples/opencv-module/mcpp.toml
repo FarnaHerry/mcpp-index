@@ -1,11 +1,11 @@
-# Public `opencv` C++23-module package test (bare-name consumption from the
-# builtin default namespace — resolved against THIS checkout via the
-# workspace-root `[indices]` redirect, which every member inherits).
+# Public `opencv` C++23-module package test (QUALIFIED consumption from the
+# `opencv` namespace — `mcpplibs:opencv` was frozen by #165 and deleted once
+# every consumer had moved, so the bare name resolves to nothing at all now).
 # Since opencv 0.0.7 the package is single-repo: the OpenCV sources are
 # vendored in its own release tarball, so this member exercises the whole
 # source build on all three platforms.
 # Overrides the workspace-root redirect: root declares `compat`, this member
-# needs `default`. A member-level [indices] REPLACES the inherited table rather
+# needs `opencv`. A member-level [indices] REPLACES the inherited table rather
 # than merging with it, which is what keeps this to ONE project index repo —
 # two repos pointing at the same tree make every lookup ambiguous.
 [indices]
