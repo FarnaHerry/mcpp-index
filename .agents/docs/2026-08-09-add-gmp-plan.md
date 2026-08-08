@@ -33,10 +33,16 @@
   - **`--libdir` 必须绝对路径**:GMP configure 拒绝相对值(`expected an absolute directory name`),
     与 OpenSSL 不同 —— 首版踩坑,已修复并注释。
 - 平台:linux + macosx(install() 内用 host cc 构建);**windows 推迟**(见 §4)。
-- 构建期依赖:linux `xim:make@latest` + `xim:glibc@>=2.39` + `xim:linux-headers@5.11.1`(cc_override 复用
-  compat.openssl 的 libc payload 方案:裸 `cc` 经 xim shim 会注入指向空 subos 的 `--sysroot`,必须显式给
-  payload gcc 传 `-isystem/-B/-L`);macosx 无构建期依赖(make 回退 PATH —— macOS 自带 GNU Make 3.81 满足
-  GMP 的 >=3.80 要求;cc 钉 `/usr/bin/cc` 以自带 SDK)。
+- 构建期依赖:linux `xim:make@latest`(GNU make);macosx 无(make 回退 PATH —— macOS 自带 GNU Make 3.81 满足
+  GMP 的 >=3.80 要求)。
+- **编译器用宿主 cc**(linux `/usr/bin/gcc`、macOS `/usr/bin/cc`),不用 xim payload 工具链:
+  - macOS 与 openssl 一致:xim llvm 无 macOS SDK,钉 Apple 自带驱动。
+  - linux 与 openssl **不同**且更严:openssl 的 Configure 只写 Makefile 从不运行可执行文件,所以 payload
+    glibc 的 `--sysroot/-B/-L` 足够;但 GMP 的 configure 会**编译并运行** ABI 探针程序,`make` 还要运行
+    gen-bases/gen-fib/gen-psqr 等构建工具 —— 链接到 xim glibc payload 的这类二进制在本钩子环境里
+    **无法运行**,configure 报 `could not find a working compiler`(2026-08-09 linux CI 实测)。
+    宿主 gcc 的探针/工具直接跑宿主 glibc,静态库的 glibc/libm 符号由消费端工具链**更新的** payload glibc
+    (2.44 > 宿主 2.39)在最终链接时满足 —— 与 openssl macOS 腿(Apple clang 构建、xim llvm 消费)同一模型。
 
 ## 3. 镜像决策
 
@@ -79,6 +85,11 @@ GREEN: mcpp test -p gmp → gmp ... ok / test result ok. 1 passed; 0 failed
 lint:  lua5.4 语法/必填字段/无前导 v/check_mirror_urls/check_package_name 全过;
        mcpp xpkg parse → compat.gmp,linux+macosx 6.3.0,1 source,1 include,target gmp;
        check_cross_package_refs、check_platform_version_parity(全仓)过
+
+CI(wellwei/mcpp-index#4,选跑 gmp 成员):
+- linux default 首次失败:GMP configure `could not find a working compiler` —— payload glibc 链接的
+  探针/工具不可运行(见 §2 编译器说明)→ 改宿主 gcc 后重跑。
+- 待 linux(gcc+llvm)/macos/windows 全绿后收尾。
 ```
 
 ## 8. 注意事项 / 后续

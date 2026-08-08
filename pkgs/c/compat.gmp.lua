@@ -23,6 +23,12 @@
 -- MinGW builds there), so there is no windows xpm entry — the member test
 -- carries no dependency and compiles to a no-op main() on windows.
 --
+-- Compiler: GMP builds with the HOST cc (/usr/bin/gcc on linux, /usr/bin/cc
+-- on macOS). GMP's configure runs probe executables and make runs gen-* tools,
+-- so they must be runnable on the host; the xim payload toolchain cannot
+-- produce those (see cc_override()). The static archive's glibc/libm symbols
+-- resolve at final link against the consumer toolchain's newer payload glibc.
+--
 -- Mirror: no CN mirror yet (no authorized mcpp-res write), so the url is the
 -- plain upstream string form; maintainers can later rewrite it to
 -- { GLOBAL=…, CN=… } with the same sha256. GLOBAL points at ftp.gnu.org — the
@@ -41,14 +47,10 @@ package = {
 
     xpm = {
         linux = {
-            -- glibc + linux-headers are here for the same reason they are on
-            -- compat.openssl: GMP builds through its own Makefile with a bare
-            -- `cc`, so every tool it uses has to be something this descriptor
-            -- resolved, not something it hopes to find. See cc_override().
-            deps = {
-                "xim:make@latest",
-                "xim:glibc@>=2.39", "xim:linux-headers@5.11.1",
-            },
+            -- GNU make comes from the xim:make build dep; the C compiler is the
+            -- HOST gcc (/usr/bin/gcc) — see cc_override() for why not the xim
+            -- payload toolchain.
+            deps = { "xim:make@latest" },
             ["6.3.0"] = {
                 url     = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
                 sha256  = "e56fd59d76810932a0555aa15a14b61c16bed66110d3c75cc2ac49ddaa9ab24c",
@@ -109,50 +111,33 @@ end
 
 -- The C compiler GMP's own build should use. GMP is configured and built
 -- outside mcpp's compile rules, so it does not inherit the resolved
--- toolchain's sysroot flags — it just runs `cc`.
+-- toolchain's flags — it just runs `cc`.
 --
 -- On macOS the toolchain in PATH is xim's llvm, which has no macOS SDK wired
 -- up, so every compile would fail on <stdio.h>. Pin Apple's own driver, which
 -- finds the SDK by itself.
 --
--- On linux, same story as compat.openssl: PATH reaches the xim gcc through its
--- xvm shim, which injects `--sysroot=<subos>` resolved against the CONSUMING
--- project's subos — an empty tree. Hand the payload gcc the three things it
--- needs (headers via -isystem, crt objects via -B, and -lc via -L) from the
--- declared glibc/linux-headers build deps.
-local function libc_payloads()
-    local glibc = pkginfo.build_dep("xim:glibc") or pkginfo.build_dep("glibc")
-    local kern  = pkginfo.build_dep("xim:linux-headers")
-                  or pkginfo.build_dep("linux-headers")
-    local groot = glibc and glibc.path
-    local kroot = kern and kern.path
-    if not (groot and os.isfile(path.join(groot, "include", "stdlib.h"))) then
-        return nil
-    end
-    return groot, kroot
-end
-
+-- On linux, unlike compat.openssl, the xim payload gcc is NOT usable:
+-- OpenSSL's Configure only writes Makefiles, but GMP's configure COMPILES AND
+-- RUNS probe programs (ABI detection) and `make` runs gen-* build tools. A
+-- conftest/gen-* binary linked against the xim glibc payload
+-- (--sysroot/-B/-L) is not runnable in this hook, so configure reports
+-- "could not find a working compiler" (seen on CI 2026-08-09). Use the HOST
+-- /usr/bin/gcc instead: its probes and build tools run against the host
+-- glibc, and the static archive's glibc symbols are satisfied at final link
+-- by the consumer toolchain's own (newer) glibc payload — the same model as
+-- compat.openssl's macOS leg (Apple clang builds, xim llvm consumes).
 local function cc_override()
     if os.host() == "macosx" and os.isfile("/usr/bin/cc") then
         return "CC=/usr/bin/cc "
     end
+    if os.host() == "linux" and os.isfile("/usr/bin/gcc") then
+        return "CC=/usr/bin/gcc "
+    end
     if os.host() ~= "linux" then return "" end
-
-    local groot, kroot = libc_payloads()
-    if not groot then
-        log.warn("gmp: no xim:glibc payload resolved; leaving CC to PATH"
-            .. " (fails if the active subos carries no libc headers)")
-        return ""
-    end
-    local libdir = os.isdir(path.join(groot, "lib64"))
-                   and path.join(groot, "lib64") or path.join(groot, "lib")
-    local cc = "gcc --sysroot=" .. groot
-        .. " -isystem " .. path.join(groot, "include")
-    if kroot and os.isdir(path.join(kroot, "include")) then
-        cc = cc .. " -isystem " .. path.join(kroot, "include")
-    end
-    cc = cc .. " -B " .. libdir .. " -L " .. libdir
-    return "CC=" .. sh_quote(cc) .. " "
+    log.warn("gmp: /usr/bin/gcc not found; leaving CC to PATH"
+        .. " (likely fails: xim's gcc shim injects an empty --sysroot)")
+    return ""
 end
 
 -- Last `n` lines of the build log, or nil if it cannot be read.
