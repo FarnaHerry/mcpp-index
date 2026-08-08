@@ -9,8 +9,18 @@ on:
   push:
     branches: [main]
   schedule:
-    # nightly full regression — exercises every workspace member regardless of diff
-    - cron: "0 6 * * *"
+    # WEEKLY full regression — every workspace member, regardless of diff.
+    #
+    # This is the safety net for the one thing selective testing structurally
+    # cannot see: two changes that are each green on their own and break each
+    # other once both have landed. Neither PR's diff names the member that
+    # breaks, so neither PR selects it.
+    #
+    # Weekly rather than nightly because a full run is no longer cheap — with
+    # the second linux toolchain leg it is ~11 hours of runner time — and the
+    # net catches the same interactions whether it is cast every day or every
+    # seven. Sunday 06:00 UTC.
+    - cron: "0 6 * * 0"
   workflow_dispatch:
     inputs:
       cache:
@@ -326,21 +336,57 @@ jobs:
       # package. Map changed files → affected members and test only those:
       #   pkgs/<x>/<lib>.lua    → members whose mcpp.toml references <lib>
       #   tests/examples/<m>/** → member <m>
-      # Run the FULL workspace when the change can affect everything:
-      # non-PR events (push to main, the nightly cron, dispatch), this
-      # workflow file (it carries the mcpp version pins, so a version bump
-      # always re-validates every package), a non-member edit to the
-      # workspace manifest, or shared test scripts. Docs-only and tools/-only
-      # changes select nothing.
+      # A push to main is mapped the same way — the merge's own diff — so a
+      # merge costs what its PR cost. Run the FULL workspace when the change
+      # can affect everything: the weekly cron and manual dispatch (which mean
+      # "check everything" by definition), this workflow file (it carries the
+      # mcpp version pins, so a version bump always re-validates every
+      # package), a non-member edit to the workspace manifest, or shared test
+      # scripts. Docs-only and tools/-only changes select nothing.
       # Note: bash 3.2 on macOS runners — no associative arrays here.
       - name: Select affected workspace members
         id: plan
         shell: bash
         run: |
           full() { echo "MEMBERS=__ALL__" >> "$GITHUB_ENV"; echo "full run: $1"; exit 0; }
-          [ "${{ github.event_name }}" = "pull_request" ] || full "event=${{ github.event_name }}"
-          base="origin/${{ github.base_ref }}"
-          changed=$(git diff --name-only "$base"...HEAD)
+
+          # A push to main has a diff too — it was just never asked for.
+          #
+          # This used to be `event != pull_request -> full`, so every merge
+          # re-tested all 67 members on all three platforms: ~11 hours of
+          # runner time to re-confirm what the PR had already gone green on
+          # minutes earlier. The premise was that a push has no base to diff
+          # against, and that is not true: merges here are squashes, so
+          # `github.event.before` is the previous main and
+          # `before..HEAD` reproduces exactly the file list the PR saw
+          # (verified on 698b95ee — same ten paths).
+          #
+          # schedule and workflow_dispatch stay full. They are not "a change
+          # landed", they are "check everything", which is the whole point of
+          # the weekly net above.
+          #
+          # Two-dot for push, three-dot for pull_request, deliberately: a PR
+          # wants its own commits against the merge base, while a push wants
+          # what actually landed on this branch.
+          case "${{ github.event_name }}" in
+            pull_request)
+              base="origin/${{ github.base_ref }}"; range="$base...HEAD" ;;
+            push)
+              base="${{ github.event.before }}"
+              # All-zero on branch creation; absent object after a
+              # force-push that dropped it. Either way there is nothing to
+              # diff against, and guessing is worse than re-testing.
+              case "$base" in
+                ""|0000000000000000000000000000000000000000)
+                  full "push with no predecessor" ;;
+              esac
+              git cat-file -e "$base^{commit}" 2>/dev/null \
+                || full "push predecessor $base not in history"
+              range="$base..HEAD" ;;
+            *)
+              full "event=${{ github.event_name }}" ;;
+          esac
+          changed=$(git diff --name-only $range)
           printf 'changed files vs %s:\n%s\n' "$base" "$changed"
           sel=""
           add() { case " $sel " in *" $1 "*) ;; *) sel="$sel $1" ;; esac; }
