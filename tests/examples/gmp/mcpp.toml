@@ -1,26 +1,20 @@
-# compat.gmp test project — validates the from-source GMP build (static
-# libgmp.a + gmp.h) end to end: the install() hook runs upstream's
-# configure && make, and this member links the resulting archive and
-# exercises the mpz / mpq / mpf layers.
+# compat.gmp — the DEFAULT (C API) build, on all three platforms.
+#
+# Not cfg-gated any more: compat.gmp no longer drives an autotools build
+# through an install() hook, it is described in `mcpp = { }` and compiled by
+# mcpp itself, so windows is a target like the others and a no-op main() there
+# would only hide that.
+#
+# The C++ bindings are the `gmpxx` feature and live in tests/examples/gmp-gmpxx:
+# features are resolved per consuming project, so one project cannot hold
+# compat.gmp both with and without them — and this member has to keep asserting
+# the build almost every consumer takes.
 #
 # It inherits the workspace-root `compat` redirect, so the descriptor in THIS
 # checkout is what gets built and linked.
-#
-# linux + macOS only: there is no windows xpm entry yet (GMP has no MSVC build
-# path), so on windows the member carries no dependency and the test compiles
-# to a no-op main().
 [package]
 name    = "gmp-tests"
 version = "0.1.0"
 
-[target.'cfg(linux)'.dependencies.compat]
+[dependencies.compat]
 gmp = "6.3.0"
-
-[target.'cfg(linux)'.build]
-cxxflags = ["-DHAVE_GMP=1"]
-
-[target.'cfg(macos)'.dependencies.compat]
-gmp = "6.3.0"
-
-[target.'cfg(macos)'.build]
-cxxflags = ["-DHAVE_GMP=1"]
