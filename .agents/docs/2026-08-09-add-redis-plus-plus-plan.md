@@ -123,3 +123,13 @@ include 布局(镜像上游 target_include_directories):
 - `<uv.h>`、`<hiredis/adapters/libuv.h>` 经 feature 激活后的依赖 include 传播到达。
 - **测试**:新成员 `redis-plus-plus-async`(1.3.13 + `features=["async"]`),进程内迷你 RESP server **解析完整 RESP 数组**(异步客户端会把 PING+SET 管道进同一 TCP 段),驱动 `AsyncRedis`(EventLoop 后台线程跑 `uv_run`),`.get()` 阻塞取回 `PONG`/OK。钉版 mcpp 本地通过。
 - **负向**:不启用 async 时,async 符号不存在(现有同步成员不受影响,三成员全绿)。
+
+### 8.3 Windows 修复:libuv `-DNDEBUG`(上游 redis-plus-plus#575)
+
+**CI 现象**(PR #195 windows 腿):async 测试运行期崩溃
+`Assertion failed: 0, src/win/handle.c:71`(exit 0xC0000409)。
+
+**根因**(与上游 open issue [sewenew/redis-plus-plus#575](https://github.com/sewenew/redis-plus-plus/issues/575) 同一 bug,作者仅 Windows 可复现,与我们的 linux/mac 全绿一致):
+`EventLoop::LoopDeleter` 析构时 `uv_walk` 对所有 handle 调 `uv_close`,其中**已被 hiredis libuv adapter cleanup 关过的 poll/timer handle** 在 Windows 上仍留在 loop 的 handle 队列(Unix 上 closing 阶段先跑完、handle 已摘链),于是二次 `uv_close` 命中 `UV_HANDLE_CLOSING` guard 里的 `assert(0)`。libuv 的二次 close 本身有 guard 会直接 return(无害),只有断言在非 NDEBUG 构建下 abort。
+
+**修复**:`compat.libuv` windows `cflags` 加 `-DNDEBUG`(与 vcpkg/conan 的 libuv release 构建一致),guard 生效、二次 close 变 no-op;不加不会改变 unix 行为(unix 不发生二次 close)。已在描述符注释中写明并指向 #575。

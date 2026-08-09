@@ -99,7 +99,16 @@ package = {
         -- src/win/ is library code; tests live in test/).
         windows = {
             sources = { "*/src/win/*.c" },
-            cflags  = { "-DWIN32_LEAN_AND_MEAN", "-D_WIN32_WINNT=0x0602", "-D_CRT_DECLARE_NONSTDC_NAMES=0" },
+            -- NDEBUG: upstream redis-plus-plus#575 — EventLoop::LoopDeleter's
+            -- uv_walk re-closes handles already uv_close'd by hiredis's libuv
+            -- adapter cleanup (on Windows they are still in the loop's handle
+            -- queue at teardown, unlike unix where the closing phase runs
+            -- first). uv_close has a UV_HANDLE_CLOSING guard that makes the
+            -- second call a harmless no-op; only the assert(0) aborts, so a
+            -- release-style build (NDEBUG, matching vcpkg/conan libuv) fixes
+            -- it. Unfixable package-side otherwise without shadowing
+            -- event_loop.cpp. Regression: PR #195 windows workspace leg.
+            cflags  = { "-DWIN32_LEAN_AND_MEAN", "-D_WIN32_WINNT=0x0602", "-D_CRT_DECLARE_NONSTDC_NAMES=0", "-DNDEBUG" },
             ldflags = { "-lpsapi", "-luser32", "-ladvapi32", "-liphlpapi", "-luserenv", "-lws2_32", "-ldbghelp", "-lole32", "-lshell32" },
         },
     },
