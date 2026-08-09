@@ -149,29 +149,38 @@ reference。所以做成 feature:11 个 `cxx/*.cc` 合并成**一个** TU(`mcpp_
 
 除 configure 的 8 处 substitute 外,生成的 `gmp.h` 还打了**一个**补丁,由首轮 windows CI 抓出来。
 
-`gmp.h` 用一串厂商分支决定 "inline" 怎么写。GCC 分支给的是
-`extern __inline__ __attribute__ ((__gnu_inline__))` —— GNU89 语义:**头里的函数体只用于内联,
-永远不作为独立符号发射**,而独立那份由带 `-D__GMP_FORCE_<fn>` 的那个 TU 提供
-(`mpz/get_ui.c`、`mpn/generic/sub.c` …)。整个库靠这个分工成立。
+`gmp.h` 里约十二个小函数(`mpz_get_ui`、`mpn_add`、`mpn_cmp` …)有两份定义:头里一份走
+`__GMP_EXTERN_INLINE`,库里一份由带 `-D__GMP_FORCE_<fn>` 的那个 TU 提供
+(`mpz/get_ui.c`、`mpn/generic/add.c` …;那里 gmp.h 会**手工抑制** `__GMP_EXTERN_INLINE`,
+所以那份一定是普通外部定义)。这套分工成立的前提是:**头里那份永远不能变成独立符号**。
+GCC 分支用 `extern __inline__ __attribute__ ((__gnu_inline__))` 保证了这点。
 
-问题在于 `_MSC_VER` 那条分支是整串里**唯一没有** `! defined (__GMP_EXTERN_INLINE)` 守卫的
-(SunPro / SCO 两条都有)。而 clang 打 MSVC ABI 时**同时**定义 `__GNUC__` 与 `_MSC_VER`,于是它
-默默把 GCC 的答案改写成裸 `__inline`。MS 的 inline 语义下,每个包含 `gmp.h` 的 TU 都会发射一份外部
-定义,链接直接死在十个重复符号上:
+`_MSC_VER` 分支给的是裸 `__inline`,MS 语义下**每个**包含 gmp.h 的 TU 都会发射一份外部定义;
+而且它是整串厂商分支里**唯一没有** `! defined (__GMP_EXTERN_INLINE)` 守卫的(SunPro / SCO 两条都有)。
+本索引 windows 用的 clang 打 MSVC ABI **定义 `_MSC_VER` 但不定义 `__GNUC__`**(实测:先按"两个都定义"
+的假设只补 `! defined (__GNUC__)` 守卫,CI 结果一字未变),于是落到 MSVC 那条,链接死在十个重复符号:
 
 ```
 lld-link: error: duplicate symbol: __gmpz_get_ui
->>> defined at gmp.h:1793   obj/.../mpz/pprime_p.o
+>>> defined at gmp.h:1800   obj/.../mpz/pprime_p.o
 >>> defined at              obj/.../mpz/get_ui.o
 ```
 
-上游从来没碰到,因为它压根没有 MSVC ABI 的构建。补丁就是给这条分支补上邻居们已经有的守卫
-(`#if defined (_MSC_VER) && ! defined (__GNUC__)`),在别处是严格 no-op:非 windows 目标不定义
-`_MSC_VER`,真 MSVC 不定义 `__GNUC__`。生成器里对补丁点做了"必须恰好命中一次"的断言,
-上游改动了这段会直接报错而不是静默漏打。
+**解法是把这条分支改成 `static __inline`** —— 正是 GMP 自己给另外两个"extern inline 会漏出全局符号"
+的编译器(DEC C、SCO OpenUNIX)的答案。关键耦合在于 `__GMP_INLINE_PROTOTYPES`:GCC 分支会把它设为 1
+(于是发 extern 原型,与 gnu_inline 定义相容),而 MSVC 分支不设 → 后面默认 0 → **不发 extern 原型**,
+`static` 定义才不会和它打架。第一次本地模拟只换 `__GMP_EXTERN_INLINE` 不动 `__GMP_INLINE_PROTOTYPES`,
+立刻得到 `static declaration of '__gmpz_abs' follows non-static declaration` —— 忠实复现 MSVC 分支
+(两者都换)之后本地实测:非 FORCE TU 里那些符号**一个都不发射**(全内联),FORCE TU 发射唯一的全局,
+六个 TU 合并链接无重复。守卫照旧补上,这样将来若有既 GNU 兼容又设 `_MSC_VER` 的编译器,仍走
+gnu_inline 那条。
+
+生成器里对补丁点做了"必须恰好命中一次"的断言,上游改动了这段会直接报错而不是静默漏打。
 
 值得记一笔的是**首轮 windows CI 的 516 个 TU 全部编译通过**,只挂在链接 —— 也就是说
-`config.h`/`gmp.h`/内联表在 LLP64 + MSVC ABI 上本来就是对的。
+`config.h`/`gmp.h`/内联表在 LLP64 + MSVC ABI 上本来就是对的。另外由于 windows 上 `__GNUC__` 未定义,
+`config.h` 里 `HAVE_ATTRIBUTE_*` 与 `longlong.h`/`MPN_IORD_U` 的 inline asm 在那边自动全关,
+走纯 C 路径 —— 正确但比 linux/macOS 慢,这是可接受的取舍。
 
 ### 3.6 `-fPIC`
 

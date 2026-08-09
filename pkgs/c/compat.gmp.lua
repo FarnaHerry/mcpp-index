@@ -931,15 +931,20 @@ typedef const __gmp_randstate_struct *gmp_randstate_srcptr;
 #endif
 
 /* Microsoft's C compiler accepts __inline */
-/* mcpp-index (compat.gmp): `&& ! defined (__GNUC__)`, which upstream's
-   neighbouring vendor branches already carry in spirit.  clang targeting the
-   MSVC ABI defines BOTH __GNUC__ and _MSC_VER; without the guard this line
-   replaces the GCC branch's gnu_inline spelling with MS inline semantics, the
-   header starts emitting an external definition of every __GMP_EXTERN_INLINE
-   function in every TU that includes it, and the link fails with ten
-   duplicate symbols against the -D__GMP_FORCE_<fn> copies. */
-#if defined (_MSC_VER) && ! defined (__GNUC__)
-#define __GMP_EXTERN_INLINE  __inline
+/* mcpp-index (compat.gmp): `static __inline`, not `__inline`, and guarded.
+   Plain `__inline` has MS inline semantics -- the header's copy of every
+   __GMP_EXTERN_INLINE function becomes an external definition in EVERY TU
+   that includes gmp.h, which collides with the out-of-line copy the
+   -D__GMP_FORCE_<fn> TU emits (ten `lld-link: duplicate symbol` errors on
+   clang targeting the MSVC ABI, which defines _MSC_VER but not __GNUC__).
+   `static __inline` is the answer GMP already gives for the other compilers
+   whose "extern inline" leaks a global (DEC C, SCO OpenUNIX): the header's
+   copy stays file-local and still inlines, while the forced TU -- where
+   gmp.h suppresses this macro by hand -- remains the single external
+   definition. The guard mirrors the SunPro/SCO branches, so a GNU-compatible
+   compiler that also sets _MSC_VER keeps the gnu_inline answer above. */
+#if defined (_MSC_VER) && ! defined (__GMP_EXTERN_INLINE)
+#define __GMP_EXTERN_INLINE  static __inline
 #endif
 
 /* Recent enough Sun C compilers want "inline" */

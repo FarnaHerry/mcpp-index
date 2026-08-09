@@ -301,29 +301,37 @@ GMP_H_SUBS = {
 # --------------------------------------------------------------------------
 # One patch to gmp.h beyond configure's substitutions.
 #
-# gmp.h picks how to spell "inline" through a vendor cascade.  The GCC branch
-# gives `extern __inline__ __attribute__ ((__gnu_inline__))` -- GNU89 inline
-# semantics: the body in the header is for inlining only and is NEVER emitted
-# as a standalone symbol, because the out-of-line copy comes from the one TU
-# that compiles with -D__GMP_FORCE_<fn> (mpz/get_ui.c, mpn/generic/sub.c, ...).
-# The whole library depends on that division.
+# gmp.h picks how to spell "inline" through a vendor cascade.  About a dozen
+# small functions (mpz_get_ui, mpn_add, mpn_cmp, ...) are then defined in the
+# header under __GMP_EXTERN_INLINE, AND out of line by the one TU that
+# compiles with -D__GMP_FORCE_<fn> (mpz/get_ui.c, mpn/generic/add.c, ...).
+# That only works if the header's copy never becomes a standalone symbol.
+# The GCC branch guarantees it with
+# `extern __inline__ __attribute__ ((__gnu_inline__))`.
 #
-# The `_MSC_VER` branch further down is the only one in the cascade WITHOUT a
-# `! defined (__GMP_EXTERN_INLINE)` guard (the SunPro and SCO branches have
-# one), so on a compiler that is BOTH -- clang targeting the MSVC ABI, which
-# is what this index uses on Windows -- it silently overwrites the GCC answer
-# with plain `__inline`.  Under MS inline semantics that emits an external
-# definition in every TU that includes gmp.h, and the link dies on ten
-# duplicate symbols against the forced copies:
+# The `_MSC_VER` branch answers plain `__inline`, whose MS semantics DO emit
+# an external definition in every TU that includes the header -- and it is the
+# only branch in the cascade without a `! defined (__GMP_EXTERN_INLINE)` guard
+# (SunPro and SCO both have one).
+#
+# This index compiles Windows with clang targeting the MSVC ABI, and that
+# compiler defines _MSC_VER but NOT __GNUC__ (measured: guarding the branch on
+# `! defined (__GNUC__)` changed nothing), so it lands on the MSVC answer and
+# the link dies on ten duplicate symbols:
 #
 #   lld-link: error: duplicate symbol: __gmpz_get_ui
-#   >>> defined at gmp.h:1793  obj/.../mpz/pprime_p.o
+#   >>> defined at gmp.h:1800  obj/.../mpz/pprime_p.o
 #   >>> defined at            obj/.../mpz/get_ui.o
 #
-# Upstream never hit this because it has no MSVC-ABI build at all.  Adding the
-# same guard the neighbouring branches already carry is the minimal fix, and
-# it is a no-op everywhere else: non-Windows targets never define _MSC_VER,
-# and real MSVC never defines __GNUC__.
+# Fix: `static __inline`, which is what GMP itself answers for the other two
+# compilers whose "extern inline" leaks a global (DEC C and SCO OpenUNIX).
+# Non-forced TUs get a file-local copy that still inlines; the forced TU is
+# unaffected because gmp.h suppresses __GMP_EXTERN_INLINE there by hand
+# (`#if ! defined (__GMP_FORCE_<fn>)`), so the external definition still comes
+# from exactly one object.  The added guard keeps a future GNU-compatible
+# compiler that also sets _MSC_VER on the gnu_inline answer.
+#
+# Upstream never hit any of this: it has no MSVC-ABI build at all.
 GMP_H_PATCHES = [(
     """/* Microsoft's C compiler accepts __inline */
 #ifdef _MSC_VER
@@ -331,15 +339,20 @@ GMP_H_PATCHES = [(
 #endif
 """,
     """/* Microsoft's C compiler accepts __inline */
-/* mcpp-index (compat.gmp): `&& ! defined (__GNUC__)`, which upstream's
-   neighbouring vendor branches already carry in spirit.  clang targeting the
-   MSVC ABI defines BOTH __GNUC__ and _MSC_VER; without the guard this line
-   replaces the GCC branch's gnu_inline spelling with MS inline semantics, the
-   header starts emitting an external definition of every __GMP_EXTERN_INLINE
-   function in every TU that includes it, and the link fails with ten
-   duplicate symbols against the -D__GMP_FORCE_<fn> copies. */
-#if defined (_MSC_VER) && ! defined (__GNUC__)
-#define __GMP_EXTERN_INLINE  __inline
+/* mcpp-index (compat.gmp): `static __inline`, not `__inline`, and guarded.
+   Plain `__inline` has MS inline semantics -- the header's copy of every
+   __GMP_EXTERN_INLINE function becomes an external definition in EVERY TU
+   that includes gmp.h, which collides with the out-of-line copy the
+   -D__GMP_FORCE_<fn> TU emits (ten `lld-link: duplicate symbol` errors on
+   clang targeting the MSVC ABI, which defines _MSC_VER but not __GNUC__).
+   `static __inline` is the answer GMP already gives for the other compilers
+   whose "extern inline" leaks a global (DEC C, SCO OpenUNIX): the header's
+   copy stays file-local and still inlines, while the forced TU -- where
+   gmp.h suppresses this macro by hand -- remains the single external
+   definition. The guard mirrors the SunPro/SCO branches, so a GNU-compatible
+   compiler that also sets _MSC_VER keeps the gnu_inline answer above. */
+#if defined (_MSC_VER) && ! defined (__GMP_EXTERN_INLINE)
+#define __GMP_EXTERN_INLINE  static __inline
 #endif
 """)]
 
