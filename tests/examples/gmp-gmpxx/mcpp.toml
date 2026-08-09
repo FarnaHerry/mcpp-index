@@ -1,0 +1,30 @@
+# compat.gmp `gmpxx` FEATURE path — GMP's C++ bindings (mpz_class / mpq_class /
+# mpf_class, the RAII wrappers with operator overloading, and the iostream
+# operators).
+#
+# Its own member rather than a flag on tests/examples/gmp: features are resolved
+# per consuming project, so one project cannot hold compat.gmp both with and
+# without gmpxx, and the base member has to keep asserting the C-only build that
+# nearly every consumer takes.
+#
+# The negative half of the feature check is structural, the same shape as
+# tests/examples/catch2-main: `gmpxx.h` ships unconditionally (it is a header,
+# and headers cannot be gated), but the eleven .cc files behind
+# `operator<<(std::ostream&, const mpz_class&)` are the feature. Turn it off and
+# this member stops linking — measured: four undefined references, the ostream
+# operators for __mpz_struct / __mpq_struct / __mpf_struct and the istream one
+# for __mpz_struct. It does not quietly pass.
+#
+# ALL THREE PLATFORMS. The feature's TU is compiled by the CONSUMER's toolchain
+# precisely so that its std::ostream / std::string symbols match whichever C++
+# standard library is in play, which is a claim that is only worth anything if
+# every leg of the matrix actually links it.
+#
+# It inherits the workspace-root `compat` redirect, so the descriptor in THIS
+# checkout is what gets built and linked.
+[package]
+name    = "gmp-gmpxx-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+gmp = { version = "6.3.0", features = ["gmpxx"] }
