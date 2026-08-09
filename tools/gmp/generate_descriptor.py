@@ -299,6 +299,51 @@ GMP_H_SUBS = {
 }
 
 # --------------------------------------------------------------------------
+# One patch to gmp.h beyond configure's substitutions.
+#
+# gmp.h picks how to spell "inline" through a vendor cascade.  The GCC branch
+# gives `extern __inline__ __attribute__ ((__gnu_inline__))` -- GNU89 inline
+# semantics: the body in the header is for inlining only and is NEVER emitted
+# as a standalone symbol, because the out-of-line copy comes from the one TU
+# that compiles with -D__GMP_FORCE_<fn> (mpz/get_ui.c, mpn/generic/sub.c, ...).
+# The whole library depends on that division.
+#
+# The `_MSC_VER` branch further down is the only one in the cascade WITHOUT a
+# `! defined (__GMP_EXTERN_INLINE)` guard (the SunPro and SCO branches have
+# one), so on a compiler that is BOTH -- clang targeting the MSVC ABI, which
+# is what this index uses on Windows -- it silently overwrites the GCC answer
+# with plain `__inline`.  Under MS inline semantics that emits an external
+# definition in every TU that includes gmp.h, and the link dies on ten
+# duplicate symbols against the forced copies:
+#
+#   lld-link: error: duplicate symbol: __gmpz_get_ui
+#   >>> defined at gmp.h:1793  obj/.../mpz/pprime_p.o
+#   >>> defined at            obj/.../mpz/get_ui.o
+#
+# Upstream never hit this because it has no MSVC-ABI build at all.  Adding the
+# same guard the neighbouring branches already carry is the minimal fix, and
+# it is a no-op everywhere else: non-Windows targets never define _MSC_VER,
+# and real MSVC never defines __GNUC__.
+GMP_H_PATCHES = [(
+    """/* Microsoft's C compiler accepts __inline */
+#ifdef _MSC_VER
+#define __GMP_EXTERN_INLINE  __inline
+#endif
+""",
+    """/* Microsoft's C compiler accepts __inline */
+/* mcpp-index (compat.gmp): `&& ! defined (__GNUC__)`, which upstream's
+   neighbouring vendor branches already carry in spirit.  clang targeting the
+   MSVC ABI defines BOTH __GNUC__ and _MSC_VER; without the guard this line
+   replaces the GCC branch's gnu_inline spelling with MS inline semantics, the
+   header starts emitting an external definition of every __GMP_EXTERN_INLINE
+   function in every TU that includes it, and the link fails with ten
+   duplicate symbols against the -D__GMP_FORCE_<fn> copies. */
+#if defined (_MSC_VER) && ! defined (__GNUC__)
+#define __GMP_EXTERN_INLINE  __inline
+#endif
+""")]
+
+# --------------------------------------------------------------------------
 # The mulfunc sources: one file compiled once per OPERATION_* macro, each
 # pass defining a different mpn entry point.  Upstream spells this with a
 # symlink per operation inside mpn/; here each gets a wrapper TU.
@@ -345,9 +390,13 @@ def build_files():
     # 1. gmp.h, from the upstream template.
     gmp_h = read(os.path.join(SRC, "gmp-h.in"))
     for k, v in GMP_H_SUBS.items():
-        assert k in gmp_h, k
+        if k not in gmp_h:
+            raise SystemExit("gmp-h.in no longer contains %s" % k)
         gmp_h = gmp_h.replace(k, v)
-    assert "@" not in gmp_h.split("__GMP_CC")[0][-4000:] or True
+    for old, new in GMP_H_PATCHES:
+        if gmp_h.count(old) != 1:
+            raise SystemExit("gmp-h.in patch target not found exactly once:\n" + old)
+        gmp_h = gmp_h.replace(old, new)
     f[f"{WRAP}/gmp.h"] = gmp_h
 
     # 2. config.h.
@@ -437,11 +486,14 @@ def build_files():
     # 10. The gmpxx feature's single TU.
     gmpxx = [
         "/* compat.gmp `gmpxx` feature: GMP's C++ bindings.\n"
-        "   ONE translation unit, not eleven source entries, for two reasons:\n"
-        "   mcpp names objects by BASENAME in a flat obj/ dir, and `limits.cc`\n"
-        "   -> `limits.o` collides with anything else in the build that has\n"
-        "   the same basename (mcpp#233/#240); and the feature table gates\n"
-        "   sources, not defines, so __GMP_WITHIN_GMPXX has to live in a file.\n"
+        "   ONE translation unit rather than eleven source entries because the\n"
+        "   feature table gates SOURCES, not defines: __GMP_WITHIN_GMPXX has to\n"
+        "   live inside a file, so a wrapper is needed either way and one is\n"
+        "   simpler than eleven. (Object-name collisions are NOT the reason --\n"
+        "   `limits.cc` would have been one before mcpp 2026.8.3.4, but object\n"
+        "   paths are nested unconditionally now: this package alone compiles\n"
+        "   three different add.c into obj/compat_gmp/gmp-6.3.0/{mpf,mpn/generic,\n"
+        "   mpz}/add.o.)\n"
         "\n"
         "   Compiled by the CONSUMER's toolchain on purpose. libgmpxx's\n"
         "   interface is std::ostream / std::istream / std::string, so its\n"

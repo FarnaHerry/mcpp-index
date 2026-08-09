@@ -931,7 +931,14 @@ typedef const __gmp_randstate_struct *gmp_randstate_srcptr;
 #endif
 
 /* Microsoft's C compiler accepts __inline */
-#ifdef _MSC_VER
+/* mcpp-index (compat.gmp): `&& ! defined (__GNUC__)`, which upstream's
+   neighbouring vendor branches already carry in spirit.  clang targeting the
+   MSVC ABI defines BOTH __GNUC__ and _MSC_VER; without the guard this line
+   replaces the GCC branch's gnu_inline spelling with MS inline semantics, the
+   header starts emitting an external definition of every __GMP_EXTERN_INLINE
+   function in every TU that includes it, and the link fails with ten
+   duplicate symbols against the -D__GMP_FORCE_<fn> copies. */
+#if defined (_MSC_VER) && ! defined (__GNUC__)
 #define __GMP_EXTERN_INLINE  __inline
 #endif
 
@@ -3449,11 +3456,14 @@ const struct bases mp_bases[257] =
             ["gmp-6.3.0/mcpp/mcpp_gmpxx.cc"] =
 [[
 /* compat.gmp `gmpxx` feature: GMP's C++ bindings.
-   ONE translation unit, not eleven source entries, for two reasons:
-   mcpp names objects by BASENAME in a flat obj/ dir, and `limits.cc`
-   -> `limits.o` collides with anything else in the build that has
-   the same basename (mcpp#233/#240); and the feature table gates
-   sources, not defines, so __GMP_WITHIN_GMPXX has to live in a file.
+   ONE translation unit rather than eleven source entries because the
+   feature table gates SOURCES, not defines: __GMP_WITHIN_GMPXX has to
+   live inside a file, so a wrapper is needed either way and one is
+   simpler than eleven. (Object-name collisions are NOT the reason --
+   `limits.cc` would have been one before mcpp 2026.8.3.4, but object
+   paths are nested unconditionally now: this package alone compiles
+   three different add.c into obj/compat_gmp/gmp-6.3.0/{mpf,mpn/generic,
+   mpz}/add.o.)
 
    Compiled by the CONSUMER's toolchain on purpose. libgmpxx's
    interface is std::ostream / std::istream / std::string, so its

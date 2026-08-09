@@ -131,9 +131,12 @@ GMP 的 C++ 绑定(`mpz_class`/`mpq_class`/`mpf_class`,RAII + 运算符重载 + 
 
 **必须由消费端工具链编译**:这些符号的名字里带 `std::ostream`/`std::string`,即 C++ 标准库的 ABI。
 在钩子里用宿主 g++ 编一份 `libgmpxx.a`,在 libstdc++ 腿上能链、在每一条 libc++ 腿上都是 undefined
-reference。所以做成 feature:11 个 `cxx/*.cc` 合并成**一个**唯一命名的 TU
-(`mcpp_gmpxx.cc`)—— 一是 mcpp 按 basename 命名对象,`limits.cc → limits.o` 是个等着撞的名字
-(mcpp#233/#240);二是 feature 表只能门控 sources、带不了 `__GMP_WITHIN_GMPXX`。
+reference。所以做成 feature:11 个 `cxx/*.cc` 合并成**一个** TU(`mcpp_gmpxx.cc`)。
+
+合并的理由是 **feature 表只能门控 sources、带不了 define** —— `__GMP_WITHIN_GMPXX` 必须写在文件里,
+所以无论如何都要一个 wrapper,一个比十一个简单。**不是**因为 basename 撞名:那是 2026.8.3.4 之前的
+情况,现版本对象路径无条件嵌套,本包自己就有三个 `add.c` 各自落在
+`obj/compat_gmp/gmp-6.3.0/{mpf,mpn/generic,mpz}/add.o`(实测)。
 
 合并踩到一个真坑并已修:`gmp.h` 用"`<stdio.h>`/`<stdarg.h>` 是否已被看见"来决定要不要声明
 `FILE*`/`va_list` 入口(`_GMP_H_HAVE_FILE` / `_GMP_H_HAVE_VA_LIST`),`gmp-impl.h` 又拿同一个答案
@@ -142,7 +145,35 @@ reference。所以做成 feature:11 个 `cxx/*.cc` 合并成**一个**唯一命�
 `aggregate gmp_asprintf_t has incomplete type`,而在 `<iostream>` 恰好拖进 `<cstdarg>` 的标准库上
 一切正常。解法是 wrapper TU 顶部先包含那两个头。
 
-### 3.5 `-fPIC`
+### 3.5 `gmp.h` 的一处补丁:MSVC ABI 上的 `__GMP_EXTERN_INLINE`
+
+除 configure 的 8 处 substitute 外,生成的 `gmp.h` 还打了**一个**补丁,由首轮 windows CI 抓出来。
+
+`gmp.h` 用一串厂商分支决定 "inline" 怎么写。GCC 分支给的是
+`extern __inline__ __attribute__ ((__gnu_inline__))` —— GNU89 语义:**头里的函数体只用于内联,
+永远不作为独立符号发射**,而独立那份由带 `-D__GMP_FORCE_<fn>` 的那个 TU 提供
+(`mpz/get_ui.c`、`mpn/generic/sub.c` …)。整个库靠这个分工成立。
+
+问题在于 `_MSC_VER` 那条分支是整串里**唯一没有** `! defined (__GMP_EXTERN_INLINE)` 守卫的
+(SunPro / SCO 两条都有)。而 clang 打 MSVC ABI 时**同时**定义 `__GNUC__` 与 `_MSC_VER`,于是它
+默默把 GCC 的答案改写成裸 `__inline`。MS 的 inline 语义下,每个包含 `gmp.h` 的 TU 都会发射一份外部
+定义,链接直接死在十个重复符号上:
+
+```
+lld-link: error: duplicate symbol: __gmpz_get_ui
+>>> defined at gmp.h:1793   obj/.../mpz/pprime_p.o
+>>> defined at              obj/.../mpz/get_ui.o
+```
+
+上游从来没碰到,因为它压根没有 MSVC ABI 的构建。补丁就是给这条分支补上邻居们已经有的守卫
+(`#if defined (_MSC_VER) && ! defined (__GNUC__)`),在别处是严格 no-op:非 windows 目标不定义
+`_MSC_VER`,真 MSVC 不定义 `__GNUC__`。生成器里对补丁点做了"必须恰好命中一次"的断言,
+上游改动了这段会直接报错而不是静默漏打。
+
+值得记一笔的是**首轮 windows CI 的 516 个 TU 全部编译通过**,只挂在链接 —— 也就是说
+`config.h`/`gmp.h`/内联表在 LLP64 + MSVC ABI 上本来就是对的。
+
+### 3.6 `-fPIC`
 
 `linux`/`macosx` 加 `-fPIC`(`cflags` + `cxxflags`)。静态库经常被链进消费者的 `.so`;而且 clang++
 默认 PIE 时链接本包就直接
