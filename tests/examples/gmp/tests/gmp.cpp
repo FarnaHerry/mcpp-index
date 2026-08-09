@@ -84,17 +84,23 @@ int check_mpz() {
     }
 
     // gcd / lcm on a pair with a known factorisation.
+    //
+    // The lcm is compared against an mpz built from a decimal string, not
+    // through mpz_cmp_ui: that takes `unsigned long`, which is 32 bits on
+    // LLP64 (Windows), so 13548070123626141 would be silently truncated and
+    // the assertion would fail on Windows only. Every *_ui entry point in
+    // this file is therefore kept under 2^32.
     {
-        mpz_t a, b, g, l;
+        mpz_t a, b, g, l, expect;
         mpz_init_set_ui(a, 123456789);
         mpz_init_set_ui(b, 987654321);
         mpz_init(g);
         mpz_init(l);
+        mpz_init_set_str(expect, "13548070123626141", 10);
         mpz_gcd(g, a, b);
         mpz_lcm(l, a, b);
-        int ok = mpz_cmp_ui(g, 9) == 0 &&
-                 mpz_cmp_ui(l, 13548070123626141u) == 0;
-        mpz_clears(a, b, g, l, nullptr);
+        int ok = mpz_cmp_ui(g, 9) == 0 && mpz_cmp(l, expect) == 0;
+        mpz_clears(a, b, g, l, expect, nullptr);
         if (!ok) return 22;
     }
 

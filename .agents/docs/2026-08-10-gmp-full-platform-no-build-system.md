@@ -211,6 +211,11 @@ gnu_inline 那条。
 `mpz_get_str` 的结果改用 `mp_get_memory_functions` 报告的 free 归还,而不是 `std::free` ——
 那才是文档写的用法,也是消费者换了自定义分配器之后唯一还正确的写法。
 
+**测试自己踩到过一次 LLP64**:`mpz_cmp_ui` 收的是 `unsigned long`,在 windows 上只有 32 位,
+于是 `mpz_cmp_ui(l, 13548070123626141u)` 被静默截断,linux/macOS 全绿而 windows 返回 22。
+改成与 `mpz_init_set_str` 造出来的 mpz 比。**本文件里所有 `*_ui` 入口的实参一律压在 2^32 以下** ——
+这条对任何要上 windows 的 compat 包测试都适用。
+
 ---
 
 ## 5. 验证证据
