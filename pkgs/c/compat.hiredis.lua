@@ -88,6 +88,11 @@ package = {
         generated_files = {
             ["mcpp_generated/include/hiredis/hiredis.h"] = "#pragma once\n#include <hiredis.h>\n",
             ["mcpp_generated/include/hiredis/async.h"]   = "#pragma once\n#include <async.h>\n",
+            -- redis-plus-plus's async build (event_loop.cpp) includes
+            -- <hiredis/adapters/libuv.h>; the real header uses relative
+            -- "../hiredis.h" / "../async.h", which resolve next to it in the
+            -- wrap dir. Same thin-wrapper trick as the two above.
+            ["mcpp_generated/include/hiredis/adapters/libuv.h"] = "#pragma once\n#include <adapters/libuv.h>\n",
         },
 
         windows = {

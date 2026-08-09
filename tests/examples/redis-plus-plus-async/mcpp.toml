@@ -1,0 +1,16 @@
+# redis-plus-plus ASYNC test project: consumes compat.redis-plus-plus with the
+# `async` feature (which pulls compat.libuv) and asserts the libuv-backed async
+# interface under `mcpp test`. Part of the mcpp-index self-referential
+# workspace — the workspace-root `[indices]` redirect points at this repo.
+#
+# The test is entirely OFFLINE: same minimal RESP server on loopback sockets as
+# the sync members, driven through sw::redis::AsyncRedis (which runs the libuv
+# event loop on a background thread). PING + SET are fired back-to-back, so the
+# server parses real RESP arrays — the async client may pipeline both commands
+# into one TCP segment.
+[package]
+name = "redis-plus-plus-async-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+redis-plus-plus = { version = "1.3.13", features = ["async"] }
