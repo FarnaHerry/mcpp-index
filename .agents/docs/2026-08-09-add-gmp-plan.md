@@ -86,10 +86,13 @@ lint:  lua5.4 语法/必填字段/无前导 v/check_mirror_urls/check_package_na
        mcpp xpkg parse → compat.gmp,linux+macosx 6.3.0,1 source,1 include,target gmp;
        check_cross_package_refs、check_platform_version_parity(全仓)过
 
-CI(wellwei/mcpp-index#4,选跑 gmp 成员):
-- linux default 首次失败:GMP configure `could not find a working compiler` —— payload glibc 链接的
+CI(wellwei/mcpp-index#4,选跑 gmp 成员)最终结论:
+- linux default 首轮失败:GMP configure `could not find a working compiler` —— payload glibc 链接的
   探针/工具不可运行(见 §2 编译器说明)→ 改宿主 gcc 后重跑。
-- 待 linux(gcc+llvm)/macos/windows 全绿后收尾。
+- 重跑后**四条 workspace 腿全绿**:linux default ✅(1m19s)、linux llvm ✅(1m29s)、macos ✅(1m41s)、
+  windows ✅(1m23s),另有 lint/select/graphics/timings ✅。
+- 唯一红 job 为 `mirror-cn-reachable`:既有 opencv 5.0.0 CN 资产(origin/main 上已存在,本分支未触碰
+  pkgs/o/)被 gitcode 返回 403,与 gmp 无关。
 ```
 
 ## 8. 注意事项 / 后续
