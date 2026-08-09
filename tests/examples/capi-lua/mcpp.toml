@@ -1,0 +1,9 @@
+[indices]
+"mcpplibs.capi" = { path = "../../.." }
+
+[package]
+name = "capi-lua-tests"
+version = "0.1.0"
+
+[dependencies.mcpplibs]
+capi.lua = "0.0.3"
