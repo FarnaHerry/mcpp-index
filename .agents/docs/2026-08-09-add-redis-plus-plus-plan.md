@@ -93,3 +93,43 @@ include 布局(镜像上游 target_include_directories):
   `'uint16_t' does not name a type` —— 1.3.3 的 `utils.h` 用 `uint16_t` 却未包含 `<cstdint>`
   (1.3.6+ 才补)。包级 `cxxflags = { "-include", "cstdint" }` 修复包自身,v133 成员
   `[build] cxxflags` 修复测试 TU(先包含 redis++.h);对 1.3.13 无害。
+
+---
+
+## 8. 追加:compat.libuv + redis-plus-plus `async` feature
+
+**日期**: 2026-08-09(PR #188 已合并后,独立新 PR)
+**目标**:补齐 redis-plus-plus 的 libuv 异步接口(上游 `REDIS_PLUS_PLUS_BUILD_ASYNC=libuv`)。
+
+### 8.1 compat.libuv 1.48.0(Form A,C 源码)
+
+- **版本**:1.48.0(2024-04,Ubuntu 24.04 LTS 世代、vcpkg 长期默认;redis-plus-plus 只需 "libuv 1.x")。
+  SHA:`8c253adb0f800926a6cbd1c6576abae0bc8eb86a4f891049b72f9e5b7dc58f33`(两次独立下载一致)。
+- **源码清单**:转录上游 CMakeLists 的逐 OS 集合。`*/src/*.c`(12 个通用)全平台;
+  `src/unix/*.c` **不能**整体 glob(每 OS 一个后端文件,aix.c/linux.c/darwin.c…),故 linux/macos
+  显式列子集:
+  - linux:18 个 unix 公共 + `proctitle.c` + `linux.c procfs-exepath.c random-getrandom.c random-sysctl-linux.c`;cflags `_FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE _GNU_SOURCE _POSIX_C_SOURCE=200112`;ldflags `-lpthread -ldl -lrt`。
+  - macosx:18 个 unix 公共 + `proctitle.c bsd-ifaddrs.c kqueue.c random-getentropy.c darwin-proctitle.c darwin.c fsevents.c`;cflags 加 `_DARWIN_UNLIMITED_SELECT=1 _DARWIN_USE_64_BIT_INODE=1`;ldflags `-lpthread`。
+  - windows:`*/src/win/*.c`(25 个,glob 安全);cflags `WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0602 _CRT_DECLARE_NONSTDC_NAMES=0`;ldflags `psapi user32 advapi32 iphlpapi userenv ws2_32 dbghelp ole32 shell32`。
+- **include_dirs** `{ "*/include", "*/src" }`:`internal.h` 引 `"uv-common.h"`(在 `src/`),`*/src` 仅供自身编译,随依赖传播(先例:c-ares/protobuf 同样暴露 src)。
+- **c_standard** = `c99`(上游 CMake 下限 90,c99 安全超集)。本机 mac 冒烟:37/37 TU 编译、`uv_version_string` 链接运行 OK。
+- **hiredis 侧**:新增 `hiredis/adapters/libuv.h` 薄包装头(`#include <adapters/libuv.h>`,真实头用相对 `../hiredis.h`/`../async.h`)。
+
+### 8.2 redis-plus-plus `async` feature
+
+- `features.async` = 9 个 async TU(`async_*.cpp` + `event_loop.cpp`)+ `deps = { ["compat.libuv"] = "1.48.0" }`。
+- 1.3.3 上其中两个 glob 零命中(`async_subscriber*.cpp` 1.3.6+ 才有),子集/超集并集与同步核心同款。
+- include_dirs 追加 `*/src/sw/redis++/future/std`(`async_connection.h` 引 `"sw/redis++/async_utils.h"`;feature 不能携带 include_dirs,基座加了对 1.3.3 也无害)。
+- `<uv.h>`、`<hiredis/adapters/libuv.h>` 经 feature 激活后的依赖 include 传播到达。
+- **测试**:新成员 `redis-plus-plus-async`(1.3.13 + `features=["async"]`),进程内迷你 RESP server **解析完整 RESP 数组**(异步客户端会把 PING+SET 管道进同一 TCP 段),驱动 `AsyncRedis`(EventLoop 后台线程跑 `uv_run`),`.get()` 阻塞取回 `PONG`/OK。钉版 mcpp 本地通过。
+- **负向**:不启用 async 时,async 符号不存在(现有同步成员不受影响,三成员全绿)。
+
+### 8.3 Windows 修复:libuv `-DNDEBUG`(上游 redis-plus-plus#575)
+
+**CI 现象**(PR #195 windows 腿):async 测试运行期崩溃
+`Assertion failed: 0, src/win/handle.c:71`(exit 0xC0000409)。
+
+**根因**(与上游 open issue [sewenew/redis-plus-plus#575](https://github.com/sewenew/redis-plus-plus/issues/575) 同一 bug,作者仅 Windows 可复现,与我们的 linux/mac 全绿一致):
+`EventLoop::LoopDeleter` 析构时 `uv_walk` 对所有 handle 调 `uv_close`,其中**已被 hiredis libuv adapter cleanup 关过的 poll/timer handle** 在 Windows 上仍留在 loop 的 handle 队列(Unix 上 closing 阶段先跑完、handle 已摘链),于是二次 `uv_close` 命中 `UV_HANDLE_CLOSING` guard 里的 `assert(0)`。libuv 的二次 close 本身有 guard 会直接 return(无害),只有断言在非 NDEBUG 构建下 abort。
+
+**修复**:`compat.libuv` windows `cflags` 加 `-DNDEBUG`(与 vcpkg/conan 的 libuv release 构建一致),guard 生效、二次 close 变 no-op;不加不会改变 unix 行为(unix 不发生二次 close)。已在描述符注释中写明并指向 #575。

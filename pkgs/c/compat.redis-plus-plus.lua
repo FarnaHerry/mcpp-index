@@ -91,6 +91,7 @@ package = {
             "*/src",
             "*/src/sw/redis++/cxx17",
             "*/src/sw/redis++/no_tls",
+            "*/src/sw/redis++/future/std",   -- async only: "sw/redis++/async_utils.h"
             "mcpp_generated",
         },
 
@@ -116,6 +117,31 @@ package = {
             "*/src/sw/redis++/subscriber.cpp",
             "*/src/sw/redis++/transaction.cpp",
             "*/src/sw/redis++/patterns/redlock.cpp",
+        },
+
+        -- `async` — upstream REDIS_PLUS_PLUS_BUILD_ASYNC=libuv: the 9 async
+        -- TUs (event_loop.cpp runs uv_run on a background thread) plus the
+        -- compat.libuv dependency. For 1.3.3 exactly two of the nine globs
+        -- match nothing (async_subscriber*.cpp were added in 1.3.6) — the
+        -- same subset/superset union as the sync core. The include dirs the
+        -- async TUs need (<uv.h> from compat.libuv, <hiredis/adapters/libuv.h>
+        -- from compat.hiredis) arrive through the deps' propagated include
+        -- dirs when this feature is active.
+        features = {
+            ["async"] = {
+                sources = {
+                    "*/src/sw/redis++/async_connection.cpp",
+                    "*/src/sw/redis++/async_connection_pool.cpp",
+                    "*/src/sw/redis++/async_redis.cpp",
+                    "*/src/sw/redis++/async_redis_cluster.cpp",
+                    "*/src/sw/redis++/async_sentinel.cpp",
+                    "*/src/sw/redis++/async_shards_pool.cpp",
+                    "*/src/sw/redis++/async_subscriber.cpp",
+                    "*/src/sw/redis++/async_subscriber_impl.cpp",
+                    "*/src/sw/redis++/event_loop.cpp",
+                },
+                deps = { ["compat.libuv"] = "1.48.0" },
+            },
         },
 
         targets = { ["redis_plus_plus"] = { kind = "lib" } },
