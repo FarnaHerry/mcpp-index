@@ -1,6 +1,8 @@
--- Form A descriptor: the upstream repo ships its own mcpp.toml from
--- 0.0.3 onwards, so we omit the `mcpp` field — mcpp default-look-up
--- finds <verdir>/lua-<tag>/mcpp.toml inside the GitHub tarball wrap.
+-- Form B descriptor for the immutable 0.0.3 payload.  Its upstream
+-- mcpp.toml predates exact package selectors and declares bare `lua`, which
+-- now means `(mcpplibs, lua)` and cannot identify the real C library at
+-- `(compat, lua)`.  Keep the release bytes unchanged and carry the canonical
+-- dependency here until a newer upstream release can return to Form A.
 package = {
     spec        = "1",
     namespace = "mcpplibs.capi",
@@ -38,5 +40,19 @@ package = {
                 sha256 = "f7f46c3cd193dc4527be5f3e5cfc29d7e322d5d3db56b9bdb060f289090088d6",
             },
         },
+    },
+
+    mcpp = {
+        schema       = "0.1",
+        language     = "c++23",
+        import_std   = false,
+        modules      = { "mcpplibs.capi.lua" },
+        include_dirs = { "*/src/capi" },
+        sources      = {
+            "*/src/capi/lua.cppm",
+            "*/src/capi/lua.cpp",
+        },
+        targets = { ["capi-lua"] = { kind = "lib" } },
+        deps    = { ["compat.lua"] = "5.4.7" },
     },
 }
