@@ -12,6 +12,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.0.55"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.55.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.55/xpkg-0.0.55.tar.gz",
+                },
+                sha256 = "d388c1dd3a531a8e03d304ee2f8dac7a693904daa45de4c400eea7169418fb45",
+            },
             ["0.0.54"] = {
                 url    = {
                     GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.54.tar.gz",
@@ -119,6 +126,13 @@ package = {
             },
         },
         macosx = {
+            ["0.0.55"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.55.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.55/xpkg-0.0.55.tar.gz",
+                },
+                sha256 = "d388c1dd3a531a8e03d304ee2f8dac7a693904daa45de4c400eea7169418fb45",
+            },
             ["0.0.54"] = {
                 url    = {
                     GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.54.tar.gz",
@@ -226,6 +240,13 @@ package = {
             },
         },
         windows = {
+            ["0.0.55"] = {
+                url    = {
+                    GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.55.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/xpkg/releases/download/0.0.55/xpkg-0.0.55.tar.gz",
+                },
+                sha256 = "d388c1dd3a531a8e03d304ee2f8dac7a693904daa45de4c400eea7169418fb45",
+            },
             ["0.0.54"] = {
                 url    = {
                     GLOBAL = "https://github.com/openxlings/libxpkg/archive/refs/tags/0.0.54.tar.gz",
