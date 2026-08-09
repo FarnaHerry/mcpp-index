@@ -1,0 +1,26 @@
+# compat.gmp test project — validates the from-source GMP build (static
+# libgmp.a + gmp.h) end to end: the install() hook runs upstream's
+# configure && make, and this member links the resulting archive and
+# exercises the mpz / mpq / mpf layers.
+#
+# It inherits the workspace-root `compat` redirect, so the descriptor in THIS
+# checkout is what gets built and linked.
+#
+# linux + macOS only: there is no windows xpm entry yet (GMP has no MSVC build
+# path), so on windows the member carries no dependency and the test compiles
+# to a no-op main().
+[package]
+name    = "gmp-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.compat]
+gmp = "6.3.0"
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_GMP=1"]
+
+[target.'cfg(macos)'.dependencies.compat]
+gmp = "6.3.0"
+
+[target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_GMP=1"]
