@@ -15,16 +15,19 @@
 -- genuinely vendored single-file headers live at its root (stb_image,
 -- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
 --
--- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.5): CORE_SOURCES
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.6): CORE_SOURCES
 -- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
 -- 0.5.5 grew a Shadertoy subsystem: render_backend.h and include/eui/types.h now
 -- include core/render/shadertoy.h unconditionally, and opengl_backend.cpp calls
 -- releaseShaderToys(), so shadertoy.cpp / shadertoy_json.cpp / shadertoy_primitive.cpp
 -- and opengl_shadertoy.cpp are part of the lib, not optional (vulkan_shadertoy.cpp
--- joins the `vulkan` feature the same way).
+-- joins the `vulkan` feature the same way). 0.5.6 adds `core/window/window_input_backend.cpp`
+-- to CORE_SOURCES (upstream moved the input/IME event pumping into its own TU) —
+-- the ONLY lib source-list change between the two versions; everything else the
+-- descriptor names is byte-identical in upstream's CORE_SOURCES.
 --
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
--- the GitHub tarball's `EUI-NEO-0.5.5/` wrap layer.
+-- the GitHub tarball's `EUI-NEO-0.5.6/` wrap layer.
 package = {
     spec        = "1",
     namespace   = "compat",
@@ -41,13 +44,17 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
-            -- CN mirror for 0.5.5 not published yet (no mcpp-res write access here);
+            -- CN mirror for 0.5.5/0.5.6 not published yet (no mcpp-res write access here);
             -- plain-string url keeps lint green and lets CN users fall back to
             -- upstream, per docs/cn-mirror.md. Flip to { GLOBAL, CN } once the
             -- gitcode release exists — sha256 stays the same.
             ["0.5.5"] = {
                 url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
+            ["0.5.6"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
         },
         macosx = {
@@ -60,6 +67,10 @@ package = {
                 url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
+            ["0.5.6"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
+            },
         },
         windows = {
             ["0.5.3"] = {
@@ -70,6 +81,10 @@ package = {
             ["0.5.5"] = {
                 url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
+            },
+            ["0.5.6"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
         },
     },
@@ -157,6 +172,10 @@ package = {
             "*/core/platform/ime_bridge.c",
             -- Window layer
             "*/core/window/window_backend.cpp",
+            -- 0.5.6: input/IME event pumping moved out of window_backend.cpp into
+            -- its own TU (upstream CORE_SOURCES). GLFW branch rides on ime_bridge.h
+            -- (ime_bridge.c, already compiled) + glfw; SDL2 branch needs only SDL.
+            "*/core/window/window_input_backend.cpp",
         },
 
         targets = { ["eui-neo"] = { kind = "lib" } },

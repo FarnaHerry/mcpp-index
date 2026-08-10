@@ -22,6 +22,13 @@
 // so there is no reason to cfg-gate this the way the X11-consuming members are.
 #include <eui_neo.h>
 
+// 0.5.6 dropped `eui/detail/dsl_app_impl.h` from the umbrella `eui_neo.h`
+// (upstream scoped it to the app-main entry points, which include it directly).
+// This member is the OWN-main shape — nothing in the package drives the loop —
+// so app::initialize/update/render/shutdown are emitted HERE by including the
+// impl header, exactly as upstream's core/app/glfw_app_main.cpp does.
+#include "eui/detail/dsl_app_impl.h"
+
 #include "core/input/input_state.h"
 #include "core/platform/platform.h"
 #include "core/render/render_backend.h"
