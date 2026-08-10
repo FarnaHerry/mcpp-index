@@ -2,11 +2,13 @@
 // to a Form A consumer, and links against real symbols from the built lib.
 //
 // `#include <eui_neo.h>` is the whole point of the header-compat shape. The
-// umbrella pulls in eui/detail/dsl_app_impl.h, which emits app::update() /
-// app::render() into THIS translation unit and leaves two symbols for the
-// application to supply — app::dslAppConfig() and app::compose(). Defining
-// them here is exactly what upstream's examples/*.cpp do, so this test is a
-// faithful minimal consumer.
+// umbrella declares the DSL app surface (eui/dsl_app.h) and leaves two symbols
+// for the application to supply — app::dslAppConfig() and app::compose().
+// Since 0.5.6 the umbrella no longer pulls in eui/detail/dsl_app_impl.h (the
+// impl lives in the app-main entry points instead), but THIS TU only defines
+// the two app symbols and never calls app::initialize/update/render — so it
+// links without the impl header, and defining the app symbols is exactly what
+// upstream's examples/*.cpp do, making this test a faithful minimal consumer.
 //
 // The assertion itself runs on eui::json::Document: it lives in
 // core/platform/json.cpp, so a package that compiled zero translation units
