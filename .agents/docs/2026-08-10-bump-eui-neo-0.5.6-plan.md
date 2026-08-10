@@ -140,11 +140,34 @@ EUI-NEO / curl / sdl2 / Vulkan-Loader tarballs were verified by sha256 and pre-s
 the member package caches (then extracted, matching what mcpp's install does) to keep the
 cold builds moving. This is an environment workaround, not a descriptor concern.
 
-> NOTE: local mcpp is 2026.8.10.1 while CI pins 2026.8.8.2 in `validate.yml`. The change is a
-> plain version bump with no new descriptor grammar, so the difference is benign; a CI green
-> on the pinned version remains the authoritative signal. The user opted to verify locally
-> with the newest mcpp (its rapid-release policy makes newer preferable).
+> NOTE: local mcpp is 2026.8.10.1; the CI `MCPP_VERSION` pin was ALSO bumped 2026.8.8.2 →
+> 2026.8.10.1 as part of this PR (see below). The user opts to verify locally with the
+> newest mcpp; its rapid-release policy makes newer preferable.
 >
 > macosx/windows cannot be exercised on this linux box; the windows `app-main` TU
 > (`_WIN32_WINNT`, winmm/user32/pdh) and the mac Cocoa tray link are re-exercised by CI's
 > other two runners.
+
+## CI MCPP_VERSION bump 2026.8.8.2 → 2026.8.10.1 (pre-existing linux failure fix)
+
+First CI run of this PR: all six eui-neo members FAILED on **linux** (both default/gcc and
+llvm legs, fast ~35s install-phase failures) while macos and windows PASSED. Reproduced
+locally with a fresh mcpp 2026.8.8.2 (MCPP_HOME pointed at the tarball root):
+
+```
+error: xlings install_packages failed (exit 1) for 'compat.glx-runtime@2026.08.08'
+  xlings reported: E_INVALID_INPUT: package 'xim:libglvnd@>=1.7.0.1' not found
+```
+
+Root cause is a **pre-existing pin/registry mismatch, not the eui-neo bump**:
+`compat.eui-neo` → `compat.glfw` (linux profile) → `compat.glx-runtime@2026.08.08` →
+`xim:libglvnd@>=1.7.0.1`. mcpp 2026.8.8.2's registry cannot resolve `xim:libglvnd`; macos
+(no X11 profile) and windows are unaffected, and mcpp 2026.8.10.1's registry carries it.
+The same failure is why main's `graphics install` check has been red on every recent main
+commit (b4e28f2 / d3909f7 / 1e0c71b).
+
+Fix: bump `MCPP_VERSION` in `.github/workflows/validate.yml` to 2026.8.10.1 (kept the 2026.8.8.2
+glibc-runtime-binding note, added the libglvnd reason). `index.toml` `min_mcpp` is left at
+2026.8.3.3 — no descriptor uses new grammar, and repo history shows the pin moves
+independently of the floor. `tests/check_graphics_install_side_effects.sh` only mentions
+2026.8.8.2 in comments (the "2026.8.8.2+" floor), which 2026.8.10.1 satisfies.

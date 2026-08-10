@@ -138,18 +138,23 @@ env:
   # 撞上时是响亮报错而不是静默用错包;下限是一道让整个索引对旧客户端失效的闸门
   # (mcpp#349),只该在描述符真的读不动时抬。这里读得动,差的是解析得对。
   #
-  # 2026.8.8.2 是本 PR 的**前置**,不是顺手升级。
+  # 2026.8.8.2 曾经是本 pin 的**前置**,不是顺手升级:
   #
   # `compat.glx-runtime` 依赖 mesa,mesa 声明 `xim:glibc@>=2.38`;下限被任何更高
   # 版本满足,于是安装图形栈会在既有 glibc 旁边**再装一个**。2026.8.8.2 之前的
   # mcpp 用 `readdir` 的第一项来解析「那个 glibc payload」,编译侧与产物的
   # interpreter 因此可以指向不同版本 —— 这正是 #179 落地后 `asio-module` 和
-  # `core` 变红、并导致整份改动被 #180 revert 的原因。
+  # `core` 变红、并导致整份改动被 #180 revert 的原因。用早于 2026.8.8.2 的 mcpp
+  # 重新落地这份改动,就是在仍会犯这个错的引擎上复现事故条件;
+  # tests/check_graphics_install_side_effects.sh 也需要它 —— 该测试在更旧的 mcpp
+  # 上失败是**有意的**。
   #
-  # 用早于 2026.8.8.2 的 mcpp 重新落地这份改动,就是在仍会犯这个错的引擎上复现
-  # 事故条件。tests/check_graphics_install_side_effects.sh 也需要它 —— 该测试在
-  # 更旧的 mcpp 上失败是**有意的**。
-  MCPP_VERSION: "2026.8.8.2"
+  # 2026.8.10.1 又加了一层:2026.8.8.2 的 registry 无法解析
+  # `xim:libglvnd@>=1.7.0.1` —— compat.glx-runtime@2026.08.08 在 linux 上的硬依赖,
+  # 任何经 compat.glfw 的 X11 profile 触及图形栈的包(eui-neo 等)都会踩到,导致
+  # linux 上安装即失败(main 的 graphics 检查因此持续变红)。2026.8.10.1 的 registry
+  # 带上了 libglvnd;glibc 修复(2026.8.8.2)依然被满足。
+  MCPP_VERSION: "2026.8.10.1"
 
 jobs:
   lint:
