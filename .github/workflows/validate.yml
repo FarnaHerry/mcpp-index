@@ -266,17 +266,50 @@ jobs:
   mirror-cn-reachable:
     # Closed-loop guard for the CN mirror: every CN url referenced by a
     # descriptor must be a live, downloadable gitcode release asset.
+    #
+    # ── Scoped to the CHANGED descriptors ─────────────────────────────────
+    # This used to walk all 87 descriptors on every run — 105 unique urls,
+    # each fetched in full (`curl -o /dev/null` downloads the body; that is
+    # the point, a gitcode release page can 200 while the asset behind it is
+    # gone) — while a PR mirrors one package's assets at a time. Everything
+    # else it re-downloaded was mirrored by an earlier PR that already
+    # checked it, and a url that was live then can only have gone dark
+    # SINCE, which is decay over time rather than something this PR did.
+    #
+    # Decay is real, and it is what the weekly cron below is for: `select`
+    # answers `__ALL__` for schedule/dispatch, so the full 105-url sweep
+    # still happens — once a week, and on demand — instead of on every push.
+    # It also still happens on any PR that touches this workflow file or a
+    # shared test script (including tests/list_cn_urls.lua, the extractor
+    # this job reads the urls with), because those widen `select` to a full
+    # run for the same reason they widen the workspace matrix.
+    #
+    # `needs: select` rather than a second diff here: the "can I trust this
+    # diff" question is already answered there, in one place.
+    needs: select
+    # Empty when the diff names no descriptor at all — a docs-only or
+    # tools-only PR mirrors nothing.
+    if: needs.select.outputs.pkgs != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install lua
         run: sudo apt-get install -y --no-install-recommends lua5.4
       - name: Check CN mirror assets are reachable
+        env:
+          PKGS: ${{ needs.select.outputs.pkgs }}
         run: |
           fail=0
-          # collect unique CN urls across all descriptors
+          if [ "$PKGS" = "__ALL__" ]; then
+            files=$(printf '%s\n' pkgs/*/*.lua)
+            echo "full sweep: every descriptor"
+          else
+            files=$PKGS
+            echo "changed descriptor(s): $files"
+          fi
+          # collect unique CN urls across the selected descriptors
           : > /tmp/cn.tsv
-          for f in pkgs/*/*.lua; do
+          for f in $files; do
             lua5.4 tests/list_cn_urls.lua "$f" >> /tmp/cn.tsv || true
           done
           sort -u /tmp/cn.tsv -o /tmp/cn.tsv
@@ -324,6 +357,9 @@ jobs:
       members: ${{ steps.fanout.outputs.members }}
       matrix:  ${{ steps.fanout.outputs.matrix }}
       plan:    ${{ steps.plan_shards.outputs.plan }}
+      # The descriptors this change actually touches, for `mirror-cn-reachable`.
+      # `__ALL__` on a full run, empty when the diff names no descriptor at all.
+      pkgs:    ${{ steps.plan.outputs.pkgs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -344,11 +380,22 @@ jobs:
       # package), a non-member edit to the workspace manifest, or shared test
       # scripts. Docs-only and tools/-only changes select nothing.
       # Note: bash 3.2 on macOS runners — no associative arrays here.
+      #
+      # The same walk also collects the CHANGED DESCRIPTORS (`pkgs` output) for
+      # `mirror-cn-reachable`. Two selections, one classification: every reason
+      # to distrust the diff — this workflow file, a shared test script, an
+      # unclassified path, a push with no predecessor, cron/dispatch — has to
+      # widen both, and writing that decision twice is how the two drift.
       - name: Select affected workspace members
         id: plan
         shell: bash
         run: |
-          full() { echo "MEMBERS=__ALL__" >> "$GITHUB_ENV"; echo "full run: $1"; exit 0; }
+          full() {
+            echo "MEMBERS=__ALL__" >> "$GITHUB_ENV"
+            echo "pkgs=__ALL__" >> "$GITHUB_OUTPUT"
+            echo "full run: $1"
+            exit 0
+          }
 
           # A push to main has a diff too — it was just never asked for.
           #
@@ -388,7 +435,7 @@ jobs:
           esac
           changed=$(git diff --name-only $range)
           printf 'changed files vs %s:\n%s\n' "$base" "$changed"
-          sel=""
+          sel=""; pkgsel=""
           add() { case " $sel " in *" $1 "*) ;; *) sel="$sel $1" ;; esac; }
           while IFS= read -r f; do
             [ -n "$f" ] || continue
@@ -413,6 +460,9 @@ jobs:
                 # which already forces a full run above.
                 [ -d "tests/examples/$m" ] && add "$m" ;;
               pkgs/*.lua|pkgs/*/*.lua)
+                # A DELETED descriptor is in the diff but not on disk, and its
+                # CN urls are gone with it — nothing left to reach.
+                if [ -f "$f" ]; then pkgsel="$pkgsel $f"; fi
                 lib=$(basename "$f" .lua); lib=${lib#compat.}
                 hit=0
                 for mt in tests/examples/*/mcpp.toml; do
@@ -447,6 +497,9 @@ jobs:
           sel=${sel# }
           echo "MEMBERS=$sel" >> "$GITHUB_ENV"
           echo "selected members: ${sel:-<none>}"
+          pkgsel=${pkgsel# }
+          echo "pkgs=$pkgsel" >> "$GITHUB_OUTPUT"
+          echo "changed descriptors: ${pkgsel:-<none>}"
       # Sharding is for the FULL run only, and the shard count per platform is
       # that platform's RUNNER CONCURRENCY — not a round number.
       #
