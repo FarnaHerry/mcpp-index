@@ -89,25 +89,34 @@ package = {
     -- carried `xim:make@latest` on linux and nothing on macOS, which is the
     -- kind of per-platform asymmetry that only shows up as a red job.
     --
-    -- No CN mirror table yet: mirroring needs an `mcpp-res` upload of the
-    -- identical bytes, which is a maintainer action. lint accepts the plain
-    -- string form and CN users fall back to ftp.gnu.org until then.
+    -- CN mirrors the identical bytes from `mcpp-res/gmp` -- the gitcode
+    -- release asset is a byte-for-byte copy of the ftp.gnu.org tarball, so
+    -- the single sha256 below authenticates either arm of the table.
     xpm = {
         linux = {
             ["6.3.0"] = {
-                url    = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                url    = {
+                    GLOBAL = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/gmp/releases/download/6.3.0/gmp-6.3.0.tar.gz",
+                },
                 sha256 = "e56fd59d76810932a0555aa15a14b61c16bed66110d3c75cc2ac49ddaa9ab24c",
             },
         },
         macosx = {
             ["6.3.0"] = {
-                url    = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                url    = {
+                    GLOBAL = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/gmp/releases/download/6.3.0/gmp-6.3.0.tar.gz",
+                },
                 sha256 = "e56fd59d76810932a0555aa15a14b61c16bed66110d3c75cc2ac49ddaa9ab24c",
             },
         },
         windows = {
             ["6.3.0"] = {
-                url    = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                url    = {
+                    GLOBAL = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/gmp/releases/download/6.3.0/gmp-6.3.0.tar.gz",
+                },
                 sha256 = "e56fd59d76810932a0555aa15a14b61c16bed66110d3c75cc2ac49ddaa9ab24c",
             },
         },
