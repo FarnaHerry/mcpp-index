@@ -1,0 +1,9 @@
+# spirv-reflect test project: reflect a REAL compute shader (compiled with
+# glslc and embedded as a word array) and assert the descriptor bindings,
+# sets and push-constant block come back with the values the shader declared.
+[package]
+name = "spirv-reflect-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+spirv-reflect = "1.4.357.0"

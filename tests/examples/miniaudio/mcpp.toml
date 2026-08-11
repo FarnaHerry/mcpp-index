@@ -1,0 +1,9 @@
+# miniaudio test project: encode a WAV, decode it back, and assert the samples
+# survive the round trip. Deliberately device-free -- CI has no sound card, so
+# this exercises the codec/DSP paths rather than ma_device.
+[package]
+name = "miniaudio-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+miniaudio = "0.11.25"

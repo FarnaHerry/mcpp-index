@@ -1,0 +1,12 @@
+# plf-hive test project: assert the property that makes a hive worth using --
+# element addresses survive erasure of their neighbours -- rather than merely
+# that the header parses.
+#
+# Qualified `compat.plf-hive` so the workspace-root [indices] redirect applies
+# and this tests THIS checkout, not the published remote index.
+[package]
+name = "plf-hive-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+plf-hive = "2026.07.31"

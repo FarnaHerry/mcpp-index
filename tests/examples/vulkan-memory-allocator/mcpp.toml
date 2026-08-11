@@ -1,0 +1,10 @@
+# VMA test project: drive the VIRTUAL allocator, which is VMA's sub-allocation
+# algorithm with the Vulkan calls removed. That makes it the one part of VMA
+# that can be asserted for real on a CI machine with no GPU and no driver --
+# and it still proves the implementation TU is compiled and linked.
+[package]
+name = "vulkan-memory-allocator-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+vulkan-memory-allocator = "3.4.0"

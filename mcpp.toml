@@ -84,6 +84,12 @@ members = [
     "tests/examples/mimalloc",
     "tests/examples/harfbuzz",
     "tests/examples/msdfgen",
+    "tests/examples/gtl",
+    "tests/examples/miniaudio",
+    "tests/examples/nanosvg",
+    "tests/examples/plf-hive",
+    "tests/examples/spirv-reflect",
+    "tests/examples/vulkan-memory-allocator",
 ]
 
 # ── The index redirect, hoisted to the workspace root ───────────────────

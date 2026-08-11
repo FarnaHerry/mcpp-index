@@ -1,0 +1,9 @@
+# nanosvg test project: parse a real SVG document and rasterize it, asserting
+# the geometry and the pixels -- which also proves the package's generated
+# implementation TU is linked (both nanosvg and nanosvgrast).
+[package]
+name = "nanosvg-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+nanosvg = "2026.07.09"

@@ -1,0 +1,8 @@
+# gtl test project: exercise the two container families people actually reach
+# for -- the Swiss-table flat_hash_map and the ordered btree_set.
+[package]
+name = "gtl-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+gtl = "1.2.0"
