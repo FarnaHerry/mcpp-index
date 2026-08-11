@@ -44,16 +44,17 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
-            -- CN mirror for 0.5.5/0.5.6 not published yet (no mcpp-res write access here);
-            -- plain-string url keeps lint green and lets CN users fall back to
-            -- upstream, per docs/cn-mirror.md. Flip to { GLOBAL, CN } once the
-            -- gitcode release exists — sha256 stays the same.
+            -- 0.5.5 has no CN mirror (never published to mcpp-res); a plain-string
+            -- url keeps lint green and lets CN users fall back to upstream, per
+            -- docs/cn-mirror.md. Flip it to { GLOBAL, CN } if that release ever
+            -- gets mirrored — sha256 stays the same.
             ["0.5.5"] = {
                 url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
         },
@@ -68,7 +69,8 @@ package = {
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
         },
@@ -83,7 +85,8 @@ package = {
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
         },
