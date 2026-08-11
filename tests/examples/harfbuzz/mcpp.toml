@@ -1,0 +1,13 @@
+# HarfBuzz test project: shape a real buffer and assert the FreeType bridge is
+# linked in, under `mcpp test`.
+#
+# compat.freetype arrives transitively through compat.harfbuzz's own deps, so
+# it is not repeated here -- the test includes <hb-ft.h>, whose FT_* parameter
+# types come from that transitive include path. If the propagation ever broke,
+# this member would fail to compile, which is the point.
+[package]
+name = "harfbuzz-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+harfbuzz = "14.3.0"

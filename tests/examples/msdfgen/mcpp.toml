@@ -1,0 +1,11 @@
+# msdfgen test project: build a real shape, generate an MSDF from it, and
+# assert the field is a distance field rather than a blank bitmap.
+#
+# compat.freetype arrives transitively through compat.msdfgen (ext/import-font
+# needs it), so it is not repeated here.
+[package]
+name = "msdfgen-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+msdfgen = "1.13"
