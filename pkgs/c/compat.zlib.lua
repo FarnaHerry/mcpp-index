@@ -42,7 +42,17 @@ package = {
         import_std   = false,
         c_standard   = "c11",
         include_dirs = {"*", "mcpp_generated/include"},
-        cflags       = { "-D_GNU_SOURCE", "-include mcpp_zlib_config.h" },
+        -- Both of these are GCC/Clang-only and used to be unconditional.
+        -- `-include` is the worse of the two on MSVC: cl does not reject it, it
+        -- warns (`D9002 ignoring unknown option`) and carries on, so the config
+        -- header was silently never included. The header only defines anything
+        -- when _WIN32 is absent, so Windows needs neither.
+        linux = {
+            cflags = { "-D_GNU_SOURCE", "-include", "mcpp_zlib_config.h" },
+        },
+        macosx = {
+            cflags = { "-include", "mcpp_zlib_config.h" },
+        },
         generated_files = {
             ["mcpp_generated/include/mcpp_zlib_config.h"] = "#ifndef MCPP_ZLIB_CONFIG_H\n#define MCPP_ZLIB_CONFIG_H\n#if !defined(_WIN32)\n#define Z_HAVE_UNISTD_H 1\n#endif\n#endif\n",
         },

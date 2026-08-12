@@ -76,16 +76,24 @@ package = {
         },
         targets = { ["freetype"] = { kind = "lib" } },
         deps    = { ["compat.libpng"] = "1.6.43" },
-        cflags  = { "-DFT2_BUILD_LIBRARY", "-DFT_DISABLE_ZLIB", "-DFT_DISABLE_BZIP2", "-DFT_DISABLE_HARFBUZZ", "-DFT_DISABLE_BROTLI", "-Wno-implicit-function-declaration", "-D_DARWIN_C_SOURCE" },
+        -- Only the FT_* configuration defines are portable. `cl` accepts -D, so
+        -- these reach MSVC unchanged; a -W switch does not -- see below.
+        cflags  = { "-DFT2_BUILD_LIBRARY", "-DFT_DISABLE_ZLIB", "-DFT_DISABLE_BZIP2", "-DFT_DISABLE_HARFBUZZ", "-DFT_DISABLE_BROTLI" },
         linux = {
             ldflags  = { "-lm" },
             sources  = { "*/builds/unix/ftsystem.c", "*/src/base/ftdebug.c" },
-            cflags   = { "-include", "fcntl.h" },
+            -- -Wno-implicit-function-declaration is a GCC/Clang switch. It used
+            -- to sit in the common cflags, where MSVC rejected it outright with
+            -- `D8021: invalid numeric argument`, so the package could not build
+            -- on Windows at all.
+            cflags   = { "-include", "fcntl.h", "-Wno-implicit-function-declaration" },
         },
         macosx = {
             ldflags  = { "-lm" },
             sources  = { "*/builds/unix/ftsystem.c", "*/src/base/ftdebug.c" },
-            cflags   = { "-include", "fcntl.h" },
+            -- _DARWIN_C_SOURCE belongs here and nowhere else; it was in the
+            -- common cflags, which put an Apple feature macro on every platform.
+            cflags   = { "-include", "fcntl.h", "-Wno-implicit-function-declaration", "-D_DARWIN_C_SOURCE" },
         },
         windows = {
             sources = {
