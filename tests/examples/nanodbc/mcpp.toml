@@ -1,0 +1,20 @@
+# nanodbc test project: assert the ODBC driver manager round-trips through the
+# wrapper. CI has no database and no ODBC driver, but it has the driver manager
+# (unixODBC on linux), which is exactly the layer nanodbc wraps -- so the
+# behavioral assertion drives the ERROR path: connecting to a DSN that does
+# not exist must throw nanodbc::database_error carrying the manager's own
+# diagnostics.
+#
+# Gated to linux: windows (-lodbc32, Windows SDK) and macOS (-liodbc) are
+# declared in the descriptor for consumers but are not exercised by this
+# index's CI -- the linux leg is the one where the system driver manager is
+# guaranteed present.
+[package]
+name = "nanodbc-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.compat]
+nanodbc = "2.14.0"
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_NANODBC=1"]
