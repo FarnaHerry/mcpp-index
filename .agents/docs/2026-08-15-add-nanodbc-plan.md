@@ -108,6 +108,25 @@ C++23 起主模板只剩声明,libc++ 从未带过该特化 → 硬错误。修�
 `state()` 是 "IM002" 的非空前缀,并断言 `what()` 含 DM 原文
 "Data source name not found"。
 
+### 5.3 GCC 拒绝重复的显式实例化定义(linux default 腿,首轮 CI 红)
+
+C++17 起 string_view 支持默认开,`NANODBC_INSTANTIATE_BIND_STRINGS(std::string)` 与
+`(std::string_view)` 展开出**完全相同**的显式实例化定义(`value_type` 都是 char;u16
+对同理)。同一 TU、同一特化,语义无碍,但标准称其为 ill-formed,GCC(16 实测,c++23
+模式)直接报错,clang 默认静默接受 —— 这正是首轮 CI 只有 linux **default**(GCC)腿红、
+llvm 腿绿的原因(linux llvm 腿的存在价值实锤)。修复是 linux `cxxflags` 加
+`-fpermissive`:GCC 官方为这类诊断留的降级开关,clang 静默忽略该 flag,一条声明同时
+喂两条腿。
+
+### 5.4 generated_files 的写法边界(评审意见引出)
+
+shim 最初是单行 `\n` 转义串,评审认为不可读。改写时确认了两条边界:
+
+- Lua 的 `..` 拼接**不被 mcpp 段解析器支持**(`malformed mcpp segment near key
+  'string'`),尽管它能过 Lua 语法检查 —— 段解析器 ≠ Lua 解析器;
+- `[==[ ]==]` 长括号在当前解析器下可用(compat.ffmpeg / compat.sdl2 的既有先例,
+  且最新 mcpp 与钉住的 2026.8.10.3 均实测通过),shim 最终采用此形式。
+
 ## 6. 测试设计
 
 `tests/examples/nanodbc`:**无数据库、无驱动**断言。CI 两样都没有,但有管理器本身 —
