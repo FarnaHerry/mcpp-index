@@ -87,6 +87,7 @@ members = [
     "tests/examples/gtl",
     "tests/examples/miniaudio",
     "tests/examples/nanosvg",
+    "tests/examples/nanodbc",
     "tests/examples/plf-hive",
     "tests/examples/spirv-reflect",
     "tests/examples/vulkan-memory-allocator",
