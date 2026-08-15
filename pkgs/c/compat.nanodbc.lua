@@ -82,6 +82,16 @@ package = {
         linux = {
             -- The driver manager, built from source; see the header comment.
             deps = { ["compat.unixodbc"] = "2.3.14" },
+            -- With string_view support on (C++17+), NANODBC_INSTANTIATE_BIND_
+            -- STRINGS(std::string) and (std::string_view) emit identical
+            -- explicit instantiation DEFINITIONS (both reduce to value_type
+            -- = char; likewise the u16 pair). One TU, identical
+            -- specializations, so the semantics are unaffected -- but the
+            -- standard calls duplicate explicit instantiation definitions
+            -- ill-formed, and GCC (the linux default leg) now rejects them
+            -- where clang accepts silently. -fpermissive is GCC's own
+            -- downgrade for exactly this diagnostic; clang ignores the flag.
+            cxxflags = { "-fpermissive" },
         },
         macosx = {
             -- iODBC driver manager, part of the OS.
