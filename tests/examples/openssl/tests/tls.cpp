@@ -2,11 +2,13 @@
 // library initialises far enough to stand up a TLS context and run a digest.
 //
 // Touching BOTH archives is the point: libssl.a (SSL_CTX_new, TLS_method) and
-// libcrypto.a (EVP_*). A link that silently dropped one, or picked up a host
-// libssl.so instead of the package's own static build, fails here.
+// libcrypto.a (EVP_*) — libssl.lib / libcrypto.lib on Windows. A link that
+// silently dropped one, or picked up a host libssl.so instead of the package's
+// own static build, fails here.
 //
-// HAVE_OPENSSL comes from this project's own cfg-gated cxxflags — the package
-// is linux/macOS-only, so elsewhere this file is an empty main().
+// HAVE_OPENSSL comes from this project's own cfg-gated cxxflags. The package
+// is supported on all three platforms now (linux/macOS: perl Configure + GNU
+// Make; windows: VC-WIN64A + nmake), so the real test runs everywhere.
 #ifdef HAVE_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
@@ -46,5 +48,5 @@ int main() {
     return 0;
 }
 #else
-int main() { return 0; }  // compat.openssl is linux/macOS-only; no-op elsewhere
+int main() { return 0; }  // no HAVE_OPENSSL — fallback that always passes
 #endif
