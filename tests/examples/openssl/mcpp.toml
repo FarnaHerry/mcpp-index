@@ -1,5 +1,6 @@
 # compat.openssl test project — the dedicated member that validates the
-# from-source OpenSSL build (static libssl.a + libcrypto.a + headers).
+# from-source OpenSSL build (static libssl.a + libcrypto.a + headers on
+# linux/macOS; libssl.lib + libcrypto.lib on Windows).
 #
 # It inherits the workspace-root `compat` redirect, so the descriptor in THIS
 # checkout is what gets built and linked. tests/examples/asio-ssl covers the
@@ -7,9 +8,10 @@
 # and this member is what isolates a failure to openssl itself rather than to
 # the feature wiring around it.
 #
-# linux + macOS only: there is no windows xpm entry yet (prebuilt MSVC archives
-# unpublished), so on windows the member carries no dependency and the test
-# compiles to a no-op main().
+# All three platforms: linux/macOS build via perl Configure + GNU Make, windows
+# via VC-WIN64A + nmake (see _install_windows in the descriptor). The member
+# declares the dependency and HAVE_OPENSSL on every platform, so the test is a
+# real test everywhere — not a no-op main() on windows.
 [package]
 name    = "openssl-tests"
 version = "0.1.0"
@@ -24,4 +26,10 @@ cxxflags = ["-DHAVE_OPENSSL=1"]
 openssl = "3.5.1"
 
 [target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_OPENSSL=1"]
+
+[target.'cfg(windows)'.dependencies.compat]
+openssl = "3.5.1"
+
+[target.'cfg(windows)'.build]
 cxxflags = ["-DHAVE_OPENSSL=1"]
