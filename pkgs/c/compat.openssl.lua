@@ -472,27 +472,43 @@ end
 local function find_vcvars()
     local vswhere = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe"
     if os.isfile(vswhere) then
-        local outf = path.join(os.getenv("TEMP") or ".", "mcpp_vswhere.txt")
+        -- vswhere is the canonical, edition-agnostic way to find the toolset.
+        -- It has to be driven through cmd /c: this hook's environment silently
+        -- swallows `os.exec("bash -c ...")` (returns true without running), so
+        -- a `bash -c "vswhere ... > out"` probe never writes its output file
+        -- and the search falls through to the hardcoded paths below — which is
+        -- exactly what breaks on CI runners (VS Enterprise, not Community).
+        local tmp  = os.getenv("TEMP") or "."
+        local bat  = path.join(tmp, "mcpp_vswhere.bat")
+        local outf = path.join(tmp, "mcpp_vswhere.txt")
+        pcall(os.rm, bat)
         pcall(os.rm, outf)
-        local ok, err = pcall(os.exec, string.format("bash -c %s", sh_quote(
-            vswhere .. " -latest -products * -requires "
-            .. "Microsoft.VisualStudio.Component.VC.Tools.x86.x64 "
-            .. "-property installationPath > " .. outf)))
-        if ok and not err then
-            local line = os.isfile(outf) and (io.readfile(outf) or "") or ""
-            line = tostring(line):gsub("%s+$", "")
+        io.writefile(bat, string.format([[
+@echo off
+"%s" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > "%s"
+]], vswhere, outf))
+        local ok = pcall(os.exec, string.format("cmd /c %s", bat))
+        if ok and os.isfile(outf) then
+            local line = (io.readfile(outf) or ""):gsub("%s+$", "")
             if line ~= "" then
                 local cand = path.join(line, "VC", "Auxiliary", "Build", "vcvars64.bat")
                 if os.isfile(cand) then return cand end
             end
         end
     end
-    for _, p in ipairs({
-        "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
-        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+    -- Fallback: well-known vcvars64.bat locations across the Enterprise /
+    -- Community / BuildTools editions and the 2022 (17) / 18 (2026) product
+    -- lines. vswhere above is canonical; this is the safety net for installs
+    -- where it is absent or the layout is unusual.
+    for _, base in ipairs({
+        "C:\\Program Files\\Microsoft Visual Studio\\18",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022",
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022",
     }) do
-        if os.isfile(p) then return p end
+        for _, ed in ipairs({ "Enterprise", "Community", "BuildTools" }) do
+            local cand = path.join(base, ed, "VC", "Auxiliary", "Build", "vcvars64.bat")
+            if os.isfile(cand) then return cand end
+        end
     end
     return nil
 end
@@ -508,14 +524,28 @@ end
 
 -- Strawberry-perl check: unlike the unix build, Configure ALSO needs
 -- Locale::Maketext::Simple here (MSYS perl lacks it and would die deep inside
--- Configure). Probe that module explicitly.
+-- Configure). Probe that module explicitly. The probe is a REAL one: this
+-- hook's environment silently swallows `os.exec("bash -c ...")`, so the old
+-- probe accepted ANY perl — including the MSYS perl that would fail inside
+-- Configure. Drive perl through a generated .bat under `cmd /c` (the same
+-- pattern find_vcvars and _install_windows use) and have it print a marker
+-- only when every required module loads. The perl paths passed here are
+-- space-free (well-known install dirs or bare `perl` from PATH); only the
+-- marker path is quoted.
 local function perl_usable_windows(perl)
-    return pcall(function()
-        os.exec(string.format("bash -c %s",
-                sh_quote(sh_quote(perl)
-                         .. " -MLocale::Maketext::Simple -MConfig -MFindBin"
-                         .. " -e exit >/dev/null 2>&1")))
-    end)
+    local tmp    = os.getenv("TEMP") or "."
+    local probe  = path.join(tmp, "mcpp_perl_probe.bat")
+    local marker = path.join(tmp, "mcpp_perl_probe.txt")
+    pcall(os.rm, probe)
+    pcall(os.rm, marker)
+    io.writefile(probe, string.format([[
+@echo off
+%s -MLocale::Maketext::Simple -MConfig -MFindBin -e "print qq(ok)" > "%s" 2>&1
+]], perl, marker))
+    local ok = pcall(os.exec, string.format("cmd /c %s", probe))
+    if not ok then return false end
+    local content = os.isfile(marker) and (io.readfile(marker) or "") or ""
+    return content:find("ok", 1, true) ~= nil
 end
 
 -- Resolve a perl that can actually drive Configure on Windows. Prefer a
