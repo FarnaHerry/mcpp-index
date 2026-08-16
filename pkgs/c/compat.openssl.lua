@@ -106,7 +106,17 @@ package = {
                 sha256 = "529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f",
             },
         },
-        -- windows deferred (prebuilt zip not yet prepared)
+        windows = {
+            -- Same source tarball as the other platforms; the build differs
+            -- (VC-WIN64A + nmake), not the source. See _install_windows().
+            ["3.5.1"] = {
+                url = {
+                    GLOBAL = "https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openssl/releases/download/3.5.1/openssl-3.5.1.tar.gz",
+                },
+                sha256 = "529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f",
+            },
+        },
     },
 
     mcpp = {
@@ -147,6 +157,13 @@ package = {
         -- this package built, so name resolution has nothing else to find, and
         -- libSystem already carries dl/pthread.
         macosx = { ldflags = { "-Llib", "-lssl", "-lcrypto" } },
+        -- Windows: MSVC-built static libs, named libssl.lib / libcrypto.lib.
+        -- -lssl / -lcrypto resolve those (clang/lld-link looks for lib<name>.lib).
+        -- Static libcrypto's own system deps must be spelled out for consumers,
+        -- the same way the linux leg lists -ldl/-lpthread. The set below is what
+        -- a no-asm Windows build needs (winsock + crypt + registry + windowing).
+        windows = { ldflags = { "-Llib", "-llibssl", "-llibcrypto",
+                                "-lws2_32", "-lcrypt32", "-ladvapi32", "-luser32" } },
     },
 }
 
@@ -445,13 +462,182 @@ local function _install_impl()
     return true
 end
 
-function install()
-    -- Windows is deferred: there is no windows xpm block, so version
-    -- resolution already fails before this point. Kept as a named error in
-    -- case a windows entry is added before this hook learns to build there.
-    if os.host() == "windows" then
-        log.error("compat.openssl: windows is not yet supported")
+-- ── Windows: VC-WIN64A + nmake ────────────────────────────────────────────
+
+-- Locate vcvars64.bat: vswhere first (canonical), then well-known paths.
+--
+-- NOTE: this xpkg runtime has no os.rm (calling it throws `attempt to call a
+-- nil value`), so it is invoked through pcall; the missing temp file is not an
+-- error worth surfacing anyway.
+local function find_vcvars()
+    local vswhere = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+    if os.isfile(vswhere) then
+        local outf = path.join(os.getenv("TEMP") or ".", "mcpp_vswhere.txt")
+        pcall(os.rm, outf)
+        local ok, err = pcall(os.exec, string.format("bash -c %s", sh_quote(
+            vswhere .. " -latest -products * -requires "
+            .. "Microsoft.VisualStudio.Component.VC.Tools.x86.x64 "
+            .. "-property installationPath > " .. outf)))
+        if ok and not err then
+            local line = os.isfile(outf) and (io.readfile(outf) or "") or ""
+            line = tostring(line):gsub("%s+$", "")
+            if line ~= "" then
+                local cand = path.join(line, "VC", "Auxiliary", "Build", "vcvars64.bat")
+                if os.isfile(cand) then return cand end
+            end
+        end
+    end
+    for _, p in ipairs({
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+    }) do
+        if os.isfile(p) then return p end
+    end
+    return nil
+end
+
+-- Windows-style dirname: strip the last path segment (works for both
+-- backslash and forward-slash paths). xpkg's Lua has path.join but no
+-- path.dirname, so derive it manually.
+local function win_dirname(p)
+    local s = tostring(p):gsub("[/\\]+$", "")
+    local head = s:match("^(.*)[/\\][^/\\]+$")
+    return head or s
+end
+
+-- Strawberry-perl check: unlike the unix build, Configure ALSO needs
+-- Locale::Maketext::Simple here (MSYS perl lacks it and would die deep inside
+-- Configure). Probe that module explicitly.
+local function perl_usable_windows(perl)
+    return pcall(function()
+        os.exec(string.format("bash -c %s",
+                sh_quote(sh_quote(perl)
+                         .. " -MLocale::Maketext::Simple -MConfig -MFindBin"
+                         .. " -e exit >/dev/null 2>&1")))
+    end)
+end
+
+-- Resolve a perl that can actually drive Configure on Windows. Prefer a
+-- native Windows perl (Strawberry) at well-known locations over whatever PATH
+-- resolves, which on a Git-for-Windows host is the MSYS perl that fails the
+-- Locale::Maketext check above.
+local function resolve_perl_windows()
+    local scoop = os.getenv("USERPROFILE")
+        and path.join(os.getenv("USERPROFILE"), "scoop", "apps", "perl",
+                      "current", "perl", "bin", "perl.exe")
+    local known = {
+        "C:\\Strawberry\\perl\\bin\\perl.exe",
+        scoop,
+    }
+    for _, c in ipairs(known) do
+        if c and os.isfile(c) and perl_usable_windows(c) then
+            return c, win_dirname(c)
+        end
+    end
+    if perl_usable_windows("perl") then
+        return "perl", nil
+    end
+    return nil, nil
+end
+
+-- Build OpenSSL on Windows. VC-WIN64A generates an NMAKE makefile, so this
+-- needs the MSVC toolset (nmake + cl). Everything runs inside ONE generated
+-- .bat invoked once under vcvars64, so every step shares the same toolset env
+-- (a vcvars invocation per command would re-enter `call` and is what the old
+-- "vcvars kills the process chain" report was chasing). A child `cmd /c`
+-- really does run vcvars fine on a normal machine; this hook captures that
+-- environment by simply doing all the work inside it.
+local function _install_windows()
+    local vcvars = find_vcvars()
+    if not vcvars then
+        log.error("compat.openssl: no Visual Studio C++ toolset found. Install "
+               .. "\"Desktop development with C++\" (MSVC + Windows SDK) and retry.")
         return false
+    end
+
+    local perl, perlbin = resolve_perl_windows()
+    if not perl then
+        log.error("compat.openssl: no usable perl. Configure needs a perl WITH "
+               .. "Locale::Maketext::Simple + core modules. Install Strawberry "
+               .. "Perl (https://strawberryperl.com) and retry.")
+        return false
+    end
+    local perlbinpath = perlbin or win_dirname(perl)
+
+    local ifile   = pkginfo.install_file()
+    local srcroot = ifile and tostring(ifile):replace(".tar.gz", "")
+                            or ("openssl-" .. pkginfo.version())
+    if not os.isdir(srcroot) then
+        srcroot = "openssl-" .. pkginfo.version()
+    end
+
+    local prefix = pkginfo.install_dir()
+    os.tryrm(prefix)
+    os.mkdir(prefix)
+    local logf = path.join(prefix, "mcpp_openssl_build.log")
+
+    -- Static-only, no asm (no NASM dependency), no apps/tests/engine. `no-asm`
+    -- is the deliberate Windows default for now: VC-WIN64A's asm path needs
+    -- NASM on %PATH%, which would be a second host dependency to resolve. Pure-C
+    -- crypto is functionally identical, just a bit slower; revisit if a build
+    -- dep for nasm ever lands.
+    local flags = "no-shared no-dso no-tests no-apps no-engine no-asm"
+    local bat = path.join(srcroot, "mcpp_build_win.bat")
+    io.writefile(bat, string.format([[
+@echo off
+call "%s" >nul 2>&1
+if errorlevel 1 exit /b 1
+set "PATH=%s;%%PATH%%"
+cd /d "%s"
+perl Configure VC-WIN64A %s --prefix="%s" --libdir=lib
+if errorlevel 1 exit /b 1
+nmake
+if errorlevel 1 exit /b 1
+nmake install_sw
+if errorlevel 1 exit /b 1
+]], vcvars, perlbinpath, srcroot, flags, prefix))
+
+    -- The unix `run()` helper wraps commands in `bash -c`, but this hook's
+    -- Windows environment has no usable bash — os.exec("bash -c …") returns
+    -- true without running anything (probed directly). Drive the build via a
+    -- single `cmd /c` invocation instead; paths here are space-free in the
+    -- standard layout, and cmd itself handles the `>` capture.
+    local exok, exerr = pcall(os.exec, string.format(
+        "cmd /c %s > %s 2>&1", bat, logf))
+    if not exok then
+        log.error("compat.openssl: windows build could not start "
+               .. "(os.exec failed: %s)", tostring(exerr))
+        return false
+    end
+
+    local libdir = path.join(prefix, "lib")
+    local crypto = path.join(libdir, "libcrypto.lib")
+    local ssl    = path.join(libdir, "libssl.lib")
+    if not os.isfile(crypto) or not os.isfile(ssl) then
+        log.error("compat.openssl: windows build produced no libcrypto.lib / "
+               .. "libssl.lib under %s (see %s)", libdir, logf)
+        return false
+    end
+
+    -- Emit the anchor TU mcpp compiles; its absence is what triggers install().
+    io.writefile(path.join(prefix, "mcpp_openssl_anchor.c"),
+                 "int mcpp_compat_openssl_anchor(void) { return 0; }\n")
+    return true
+end
+
+function install()
+    if os.host() == "windows" then
+        local ok, result = pcall(_install_windows)
+        if not ok then
+            log.error("compat.openssl install() (windows) failed: %s", tostring(result))
+            return false
+        end
+        if not result then
+            log.error("compat.openssl install() (windows) returned false")
+            return false
+        end
+        return true
     end
     local ok, result = pcall(_install_impl)
     if not ok then
