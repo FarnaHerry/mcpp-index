@@ -23,6 +23,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.2.0"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.2.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openarch/releases/download/0.2.0/openarch-0.2.0.tar.gz",
+                },
+                sha256 = "56d4706f45ee581bcd9d1e122a743daf74b26aeaf68f4675b10e1df5596e6303",
+            },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.1.0.tar.gz",
@@ -32,6 +39,13 @@ package = {
             },
         },
         macosx = {
+            ["0.2.0"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.2.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openarch/releases/download/0.2.0/openarch-0.2.0.tar.gz",
+                },
+                sha256 = "56d4706f45ee581bcd9d1e122a743daf74b26aeaf68f4675b10e1df5596e6303",
+            },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.1.0.tar.gz",
@@ -41,6 +55,13 @@ package = {
             },
         },
         windows = {
+            ["0.2.0"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.2.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openarch/releases/download/0.2.0/openarch-0.2.0.tar.gz",
+                },
+                sha256 = "56d4706f45ee581bcd9d1e122a743daf74b26aeaf68f4675b10e1df5596e6303",
+            },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openarch/archive/refs/tags/0.1.0.tar.gz",
