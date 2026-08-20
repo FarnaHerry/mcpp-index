@@ -9,13 +9,37 @@
 -- link against nothing. Pointing at the manifest moves the root inside the
 -- wrap layer, where both the manifest and the program live.
 --
--- ⚠️ `deps` names the EMULATOR and nothing else. The target's C library is not
--- here because it is not this package's: mcpp resolves it from the target's
--- own row, the way it resolves the compiler. What is left is the one xim
--- package that really is a board fact — how to run an image — and it is at the
--- xpm PLATFORM level because mcpp materializes `[xlings] deps` for the ROOT
--- project only, so a consumer running `mcpp add riscv-virt-rt` would otherwise
--- get a board package with no way to start it.
+-- ⚠️ `deps` NAMES THE TARGET'S C LIBRARY AGAIN, AND REMOVING IT WAS A
+-- REGRESSION THAT TOOK FIVE VERSIONS TO SURFACE.
+--
+-- 0.3.0 dropped `xim:picolibc-riscv` from these three lines, reasoning that the
+-- target's C library "is not this package's: mcpp resolves it from the target's
+-- own row, the way it resolves the compiler". Two different statements were
+-- folded into one there, and only the first is true:
+--
+--   BUILD TIME  the board must not name picolibc — no include path, no library
+--               name, no linker script of its own. mcpp derives all of it from
+--               the target row. 0.3.0 was right about this and it stands.
+--   INSTALL TIME  something has to make the payload EXIST. mcpp resolves the
+--               compiler through an installing call; the target's C library it
+--               only looks UP on disk, and when absent it silently adds no
+--               paths. Nothing installs it.
+--
+-- The compiler comparison is what made the removal look safe. Measured on a
+-- cold runner afterwards: `picolibc` appears nowhere in the entire CI log —
+-- glibc and llvm download, it does not — and every build then dies on
+-- `'stdio.h' file not found` pointing inside this package. Rebuilding does not
+-- help, because the second build looks in the same empty place as the first.
+--
+-- An install-time edge is exactly what `xpm.<platform>.deps` is, so that is
+-- where it belongs. It is at the PLATFORM level rather than in the package's
+-- own `[xlings]` because mcpp materializes `[xlings] deps` for the ROOT project
+-- only — a consumer running `mcpp add riscv-virt-rt` would otherwise get a
+-- board package with neither a C library nor a way to start an image.
+--
+-- ⚠️ The criterion for this edge is "take it away and put it back": on a
+-- machine that already has the payload, its presence and its absence look
+-- identical.
 -- ⚠️ 0.4.0's `nolibc` template generates a project that does not run. The
 -- scaffolder injects the template's own package as a dependency, and this
 -- package's module includes <stdio.h> — so on a target with no C library the
@@ -38,7 +62,7 @@ package = {
     -- published is a version someone may have pinned.
     xpm = {
         linux = {
-            deps = { "xim:qemu-riscv@9.2.4-1" },
+            deps = { "xim:picolibc-riscv@1.8.12", "xim:qemu-riscv@9.2.4-1" },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/riscv-virt-rt/archive/refs/tags/0.1.0.tar.gz",
@@ -76,7 +100,7 @@ package = {
             },
         },
         macosx = {
-            deps = { "xim:qemu-riscv@9.2.4-1" },
+            deps = { "xim:picolibc-riscv@1.8.12", "xim:qemu-riscv@9.2.4-1" },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/riscv-virt-rt/archive/refs/tags/0.1.0.tar.gz",
@@ -114,7 +138,7 @@ package = {
             },
         },
         windows = {
-            deps = { "xim:qemu-riscv@9.2.4-1" },
+            deps = { "xim:picolibc-riscv@1.8.12", "xim:qemu-riscv@9.2.4-1" },
             ["0.1.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/riscv-virt-rt/archive/refs/tags/0.1.0.tar.gz",
