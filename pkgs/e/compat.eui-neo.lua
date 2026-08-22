@@ -15,7 +15,7 @@
 -- genuinely vendored single-file headers live at its root (stb_image,
 -- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
 --
--- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.6): CORE_SOURCES
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.7): CORE_SOURCES
 -- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
 -- 0.5.5 grew a Shadertoy subsystem: render_backend.h and include/eui/types.h now
 -- include core/render/shadertoy.h unconditionally, and opengl_backend.cpp calls
@@ -26,8 +26,19 @@
 -- the ONLY lib source-list change between the two versions; everything else the
 -- descriptor names is byte-identical in upstream's CORE_SOURCES.
 --
+-- 0.5.7: CORE_SOURCES is byte-identical to 0.5.6, so the lib's shape does not
+-- change; the version's real moves are the linux tray default (SNI over GDBus
+-- via glib/gio, replacing the dead GTK3+libappindicator path — tray_bridge.c
+-- now speaks freedesktop SNI when EUI_TRAY_SNI is set, which `compat.tray`
+-- never feeds) and SDL2-only input fixes (SDL_GetMouseFocus, pointer/button
+-- mapping) plus X11 resource handling in the SDL2 window backend. None of that
+-- touches the sources this descriptor compiles: `compat.tray` does not provide
+-- GDBus, so the linux leg still builds the EUI_TRAY_HAS_BACKEND=0 stub exactly
+-- as before, and the x11_*.cpp / tray-gio pieces are not in CORE_SOURCES.
+-- The new `EUI_ENABLE_TRAY` option does not affect this package either.
+--
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
--- the GitHub tarball's `EUI-NEO-0.5.6/` wrap layer.
+-- the GitHub tarball's `EUI-NEO-0.5.7/` wrap layer.
 package = {
     spec        = "1",
     namespace   = "compat",
@@ -57,6 +68,13 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
+            -- 0.5.7 has no CN mirror yet (never published to mcpp-res); same
+            -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
+            -- mirrored — sha256 stays the same.
+            ["0.5.7"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
+            },
         },
         macosx = {
             ["0.5.3"] = {
@@ -73,6 +91,13 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
             },
+            -- 0.5.7 has no CN mirror yet (never published to mcpp-res); same
+            -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
+            -- mirrored — sha256 stays the same.
+            ["0.5.7"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
+            },
         },
         windows = {
             ["0.5.3"] = {
@@ -88,6 +113,13 @@ package = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.6.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.6/eui-neo-0.5.6.tar.gz" },
                 sha256 = "0df8d79897a480566b0989060f206431d12c4a83eb7aef50b8e5d21f1676abf8",
+            },
+            -- 0.5.7 has no CN mirror yet (never published to mcpp-res); same
+            -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
+            -- mirrored — sha256 stays the same.
+            ["0.5.7"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
         },
     },
