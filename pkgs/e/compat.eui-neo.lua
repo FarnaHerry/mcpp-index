@@ -489,23 +489,29 @@ import("xim.libxpkg.pkginfo")
 import("xim.libxpkg.system")
 import("xim.libxpkg.log")
 
--- Libraries the SNI tray backend needs at runtime, symlinked into the
--- payload so the link and the runtime closure both resolve inside one
--- directory on the consumer's RPATH. Three origins, in preference order:
+-- Libraries the SNI tray backend needs at runtime, COPIED into the payload
+-- so the link and the runtime closure both resolve inside one directory on
+-- the consumer's RPATH. Copies, not symlinks: the subos view is
+-- project-local while this payload is shared across projects, and a staged
+-- symlink dangles the moment the project that provided the view is not the
+-- one building (observed: `gio/gio.h file not found` off a shared payload
+-- pointing into a wiped project .mcpp/). The payload dir is
+-- version-immutable and already on the RPATH, so copies lose nothing.
+-- Two origins, in preference order:
 --
---   * the glib sonames come from the SubOS VIEW, not the xim payload dir:
---     the view is the stable indirection (the role /run/opengl-driver
---     plays on NixOS — see compat.glx-runtime's note), so a glib upgrade
---     under us does not strand recorded RPATHs on a versioned path.
---   * the xim-provided transitives (libffi / pcre2 / zlib — xim:glib's
---     own deps) come from the same view.
---   * libmount / libselinux and their transitives have NO xim provider
---     yet: the xim:glib build links them, no xim package ships them. They
---     are staged from the HOST with a warning, the same host-plane
---     fallback compat.glx-runtime used before xim:graphics existed. The
---     day xim gains util-linux/libselinux packages this branch is dead
---     code; the day a host ships a glibc newer than the payload's, this
---     is the mcpp#352 configuration again and the warn below says so.
+--   * the glib sonames and the xim-provided transitives (libffi / pcre2 /
+--     zlib — xim:glib's own deps) come from the subos view when published,
+--     else straight from the xim store. The view alone is NOT enough at
+--     hook time: a package already cached in the store skips the config()
+--     run that publishes it, so on a fresh project view the transitives
+--     can be missing even though the store holds them (observed).
+--   * libmount / libselinux / libblkid have NO xim provider yet: the
+--     xim:glib build links them, no xim package ships them. They are
+--     staged from the HOST with a warning, the same host-plane fallback
+--     compat.glx-runtime used before xim:graphics existed. The day xim
+--     gains util-linux/libselinux packages this branch is dead code;
+--     the day a host ships a glibc newer than the payload's, this is
+--     the mcpp#352 configuration again and the warn below says so.
 local subos_sonames = {
     "libglib-2.0.so", "libglib-2.0.so.0",
     "libgio-2.0.so", "libgio-2.0.so.0",
@@ -565,68 +571,150 @@ function install()
         return true
     end
 
-    -- Stage glib out of the SubOS VIEW, not the xim payload dir: the view is
-    -- the stable indirection (the role /run/opengl-driver plays on NixOS —
-    -- see compat.glx-runtime's note), so a glib upgrade under us does not
-    -- strand recorded RUNPATHs on a versioned payload path.
+    -- Resolver, in tier order. The subos VIEW (project-local) is consulted
+    -- first but is NOT reliable at hook time: entries appear there only
+    -- when the providing package's config() runs, and a package already
+    -- cached in the store skips that run — observed on a wiped .mcpp/
+    -- where the view had the glib sonames but not pcre2/zlib/libffi yet.
+    -- The STORE (the xpkgs dir the payloads live in) is the stable source:
+    -- a package's files exist there from the moment it is fetched, which
+    -- for every xpm-level dep is strictly before this hook runs.
     local subos = system.subos_sysrootdir()
-    local subos_glib_inc = path.join(subos, "usr", "include", "glib-2.0")
     local subos_lib = path.join(subos, "lib")
 
-    if not os.isdir(subos_glib_inc) then
-        log.error("glib-2.0 headers are not in this subos. They come from "
-                  .. "`xim:glib` (declared as a runtime dep at the xpm level); "
-                  .. "if it is declared and this still fires, the stack did "
-                  .. "not finish installing")
+    local store_roots = {}
+    local function add_root(root)
+        if root and root ~= "" and os.isdir(root) then
+            for _, r in ipairs(store_roots) do
+                if r == root then return end
+            end
+            table.insert(store_roots, root)
+        end
+    end
+    add_root(path.directory(path.directory(idir)))
+    local xlh = os.getenv("XLINGS_HOME")
+    if xlh and xlh ~= "" then
+        add_root(path.join(xlh, "data", "xpkgs"))
+    end
+
+    local from_store = {}
+    -- os.files/os.dirs are NOT in the xpm sandbox (install hook died on
+    -- exactly that); glob through the shell instead. One match per line,
+    -- no-match expands to an ls error that stderr's redirect swallows.
+    local function glob(pattern)
+        local out = {}
+        for line in os.iorun("sh -c 'ls -d " .. pattern .. " 2>/dev/null'"):gmatch("[^\n]+") do
+            table.insert(out, line)
+        end
+        return out
+    end
+    local function resolve(soname)
+        local in_view = path.join(subos_lib, soname)
+        if os.isfile(in_view) then
+            return in_view, false
+        end
+        for _, root in ipairs(store_roots) do
+            for _, hit in ipairs(glob(root .. "/*/*/lib/" .. soname)) do
+                if os.isfile(hit) then
+                    return hit, true
+                end
+            end
+        end
+        return nil, false
+    end
+
+    -- Headers, view first then the store (same race as the sonames).
+    local subos_glib_inc = path.join(subos, "usr", "include", "glib-2.0")
+    local glib_inc = nil
+    if os.isdir(subos_glib_inc) then
+        glib_inc = subos_glib_inc
+    else
+        for _, root in ipairs(store_roots) do
+            local hits = glob(root .. "/xim-x-glib/*/include/glib-2.0")
+            if #hits > 0 then
+                glib_inc = hits[1]
+                break
+            end
+        end
+    end
+    if not glib_inc then
+        log.error("glib-2.0 headers found neither in this subos nor in the "
+                  .. "xim store. They come from `xim:glib` (declared as a "
+                  .. "runtime dep at the xpm level); if it is declared and "
+                  .. "this still fires, the stack did not finish installing")
         return false
     end
 
+    -- COPY, not symlink. The subos view is project-local while this payload
+    -- is shared across projects: a symlink staged from the view dangles the
+    -- moment another project (or a wiped .mcpp/) is the one that builds —
+    -- observed as `gio/gio.h file not found` on a shared payload whose
+    -- staged link pointed into a deleted project view. The payload dir is
+    -- version-immutable and already on the consumer's RPATH, so copies are
+    -- also the stable indirection the glx-runtime note wants; a glib bump
+    -- simply rides the next eui-neo version.
     os.tryrm(path.join(geninc, "glib-2.0"))
-    os.exec("ln -sf '" .. subos_glib_inc .. "' '" .. path.join(geninc, "glib-2.0") .. "'")
+    os.exec("cp -rL '" .. glib_inc .. "' '" .. geninc .. "'")
 
     local genlib = path.join(gendir, "lib")
     os.mkdir(genlib)
     local function stage(soname, src)
-        os.exec("ln -sf '" .. src .. "' '" .. path.join(genlib, soname) .. "'")
+        os.exec("cp -L '" .. src .. "' '" .. path.join(genlib, soname) .. "'")
     end
 
     local missing = {}
     for _, soname in ipairs(subos_sonames) do
-        local src = path.join(subos_lib, soname)
-        if os.isfile(src) then
+        local src, store_side = resolve(soname)
+        if src then
             stage(soname, src)
+            if store_side then
+                table.insert(from_store, soname)
+            end
         else
             table.insert(missing, soname)
         end
     end
+    if #from_store > 0 then
+        log.warn("%s came from the xim store, bypassing a subos view that "
+                 .. "had not published them yet (publish lists lag payloads — "
+                 .. "libffi.so.8: openxlings/xim-pkgindex#676)",
+                 table.concat(from_store, ", "))
+    end
     if #missing > 0 then
-        log.error("%s is not in this subos — see the header note about "
-                  .. "xim:glib", table.concat(missing, ", "))
+        log.error("%s is in neither this subos nor the xim store — see the "
+                  .. "header note about xim:glib", table.concat(missing, ", "))
         return false
     end
 
-    -- The host-plane fallback. Prefer the subos view for these too (a future
-    -- xim provider lands there without a descriptor change); only when it
-    -- has nothing do the host dirs get searched, loudly.
+    -- The host-plane fallback. Prefer the view/store for these too (a future
+    -- xim provider lands there without a descriptor change); only when both
+    -- have nothing do the host dirs get searched, loudly.
     local from_host = {}
     for _, soname in ipairs(host_fallback_sonames) do
-        if os.isfile(path.join(subos_lib, soname)) then
-            stage(soname, path.join(subos_lib, soname))
-        else
-            local found = nil
+        local src = resolve(soname)
+        if not src then
             for _, dir in ipairs(host_lib_dirs) do
-                local src = path.join(dir, soname)
-                if os.isfile(src) then
-                    found = src
+                local cand = path.join(dir, soname)
+                if os.isfile(cand) then
+                    src = cand
                     break
                 end
             end
-            if found then
-                stage(soname, found)
-                table.insert(from_host, soname)
-            else
-                table.insert(missing, soname)
+        end
+        if src then
+            stage(soname, src)
+            local host_origin = false
+            for _, dir in ipairs(host_lib_dirs) do
+                if src:sub(1, #dir) == dir then
+                    host_origin = true
+                    break
+                end
             end
+            if host_origin then
+                table.insert(from_host, soname)
+            end
+        else
+            table.insert(missing, soname)
         end
     end
     if #from_host > 0 then
@@ -637,8 +725,8 @@ function install()
                  .. "glibc overtakes the payload's", table.concat(from_host, ", "))
     end
     if #missing > 0 then
-        log.error("%s found neither in this subos nor on the host",
-                  table.concat(missing, ", "))
+        log.error("%s found neither in this subos, the xim store, nor on "
+                  .. "the host", table.concat(missing, ", "))
         return false
     end
     return true
