@@ -475,8 +475,16 @@ package = {
             -- closure both resolve inside the hermetic boundary (the same
             -- mcpp#352 problem as GL on the host, the same staging shape as
             -- compat.glx-runtime).
+            -- The -L is RELATIVE to the payload: mcpp resolves it against
+            -- the install dir (same convention as compat.openblas's
+            -- "-Llib"). It is load-bearing, not decorative: with only
+            -- runtime.library_dirs the staged dir reaches links as
+            -- -Wl,-rpath, which lld happens to search for -l but GNU ld
+            -- does not — on the GNU-ld toolchain -lglib then falls through
+            -- to the host's /lib64 (wrong glib, or none at all).
             cflags  = { "-DEUI_TRAY_SNI=1", "-pthread" },
-            ldflags = { "-lpthread", "-ldl",
+            ldflags = { "-Lmcpp_generated/glib/lib",
+                        "-lpthread", "-ldl",
                         "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
             runtime = {
                 library_dirs = { "mcpp_generated/glib/lib" },
@@ -723,6 +731,40 @@ function install()
                  .. "libselinux are not packaged). Built against the host's "
                  .. "glibc, they are the mcpp#352 configuration the day that "
                  .. "glibc overtakes the payload's", table.concat(from_host, ", "))
+    end
+
+    -- Versioned-symbol coherence: a HOST libselinux references pcre2
+    -- symbols WITH version tags (PCRE2_10.xx), and a versioned reference
+    -- cannot bind to the xim pcre2's unversioned definitions — GNU ld
+    -- hard-errors at link time, lld lets it through to a runtime warning.
+    -- The reverse direction is fine (unversioned refs bind to versioned
+    -- defs), so when libselinux came from the host, pcre2 must too:
+    -- overwrite the xim-staged copy with the host's, which satisfies
+    -- both sides. Ubuntu and Fedora both ship libpcre2-8-0 by default.
+    local selinux_from_host = false
+    for _, soname in ipairs(from_host) do
+        if soname == "libselinux.so.1" then
+            selinux_from_host = true
+            break
+        end
+    end
+    if selinux_from_host then
+        local host_pcre = nil
+        for _, dir in ipairs(host_lib_dirs) do
+            local cand = path.join(dir, "libpcre2-8.so.0")
+            if os.isfile(cand) then
+                host_pcre = cand
+                break
+            end
+        end
+        if host_pcre then
+            stage("libpcre2-8.so.0", host_pcre)
+        else
+            log.warn("libselinux came from the host but libpcre2-8.so.0 did "
+                     .. "not: the xim pcre2's unversioned symbols cannot "
+                     .. "satisfy the host libselinux, and GNU ld will fail "
+                     .. "the final link")
+        end
     end
     if #missing > 0 then
         log.error("%s found neither in this subos, the xim store, nor on "
