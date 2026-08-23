@@ -27,15 +27,15 @@
 -- descriptor names is byte-identical in upstream's CORE_SOURCES.
 --
 -- 0.5.7: CORE_SOURCES is byte-identical to 0.5.6, so the lib's shape does not
--- change; the version's real moves are the linux tray default (SNI over GDBus
+-- change; the version's real moves are the linux tray backend (SNI over GDBus
 -- via glib/gio, replacing the dead GTK3+libappindicator path — tray_bridge.c
--- now speaks freedesktop SNI when EUI_TRAY_SNI is set, which `compat.tray`
--- never feeds) and SDL2-only input fixes (SDL_GetMouseFocus, pointer/button
--- mapping) plus X11 resource handling in the SDL2 window backend. None of that
--- touches the sources this descriptor compiles: `compat.tray` does not provide
--- GDBus, so the linux leg still builds the EUI_TRAY_HAS_BACKEND=0 stub exactly
--- as before, and the x11_*.cpp / tray-gio pieces are not in CORE_SOURCES.
--- The new `EUI_ENABLE_TRAY` option does not affect this package either.
+-- speaks freedesktop StatusNotifierItem when EUI_TRAY_SNI is set, which this
+-- descriptor now does on linux, wiring glib through `xim:glib` and the
+-- staging install() hook below) and SDL2-only input fixes (SDL_GetMouseFocus,
+-- pointer/button mapping) plus X11 resource handling in the SDL2 window
+-- backend. The new `EUI_ENABLE_TRAY` option does not affect this package:
+-- tray_bridge.c is in CORE_SOURCES unconditionally and the define selects
+-- which backend its body compiles to.
 --
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
 -- the GitHub tarball's `EUI-NEO-0.5.7/` wrap layer.
@@ -50,6 +50,13 @@ package = {
 
     xpm = {
         linux = {
+            -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
+            -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
+            -- xim:glib publishes glib-2.0 / gio-2.0 / gobject-2.0 into the SubOS
+            -- view; the install() hook at the bottom of this file stages them
+            -- into the payload (headers for the compile, sonames for the link
+            -- and the runtime closure — the same mcpp#352 boundary as GL).
+            deps = { runtime = { "xim:glib@2.80.0" } },
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
@@ -132,7 +139,9 @@ package = {
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
         -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        include_dirs = { "*/include", "*", "mcpp_generated" },
+        -- `mcpp_generated/glib/include/glib-2.0` is the staged glib header tree
+        -- (linux SNI tray; see install()); off linux it is an empty directory.
+        include_dirs = { "*/include", "*", "mcpp_generated", "mcpp_generated/glib/include/glib-2.0" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
@@ -458,13 +467,179 @@ package = {
         },
 
         linux = {
-            -- No tray define on purpose. Upstream only sets
-            -- EUI_TRAY_APPINDICATOR when pkg-config finds GTK3 AND
-            -- libappindicator; this index has neither, so tray_bridge.c
-            -- compiles its EUI_TRAY_HAS_BACKEND=0 stub — which is exactly
-            -- what upstream does on a machine without those dev packages.
-            -- `-ldl` is glad's CMAKE_DL_LIBS.
-            ldflags = { "-lpthread", "-ldl" },
+            -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
+            -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
+            -- xim:glib (declared at the xpm→linux level) lands the libraries in
+            -- the SubOS view; the install() hook below stages them plus the
+            -- headers into mcpp_generated/glib/ so the compile and the runtime
+            -- closure both resolve inside the hermetic boundary (the same
+            -- mcpp#352 problem as GL on the host, the same staging shape as
+            -- compat.glx-runtime).
+            cflags  = { "-DEUI_TRAY_SNI=1", "-pthread" },
+            ldflags = { "-lpthread", "-ldl",
+                        "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
+            runtime = {
+                library_dirs = { "mcpp_generated/glib/lib" },
+            },
         },
     },
 }
+
+import("xim.libxpkg.pkginfo")
+import("xim.libxpkg.system")
+import("xim.libxpkg.log")
+
+-- Libraries the SNI tray backend needs at runtime, symlinked into the
+-- payload so the link and the runtime closure both resolve inside one
+-- directory on the consumer's RPATH. Three origins, in preference order:
+--
+--   * the glib sonames come from the SubOS VIEW, not the xim payload dir:
+--     the view is the stable indirection (the role /run/opengl-driver
+--     plays on NixOS — see compat.glx-runtime's note), so a glib upgrade
+--     under us does not strand recorded RPATHs on a versioned path.
+--   * the xim-provided transitives (libffi / pcre2 / zlib — xim:glib's
+--     own deps) come from the same view.
+--   * libmount / libselinux and their transitives have NO xim provider
+--     yet: the xim:glib build links them, no xim package ships them. They
+--     are staged from the HOST with a warning, the same host-plane
+--     fallback compat.glx-runtime used before xim:graphics existed. The
+--     day xim gains util-linux/libselinux packages this branch is dead
+--     code; the day a host ships a glibc newer than the payload's, this
+--     is the mcpp#352 configuration again and the warn below says so.
+local subos_sonames = {
+    "libglib-2.0.so", "libglib-2.0.so.0",
+    "libgio-2.0.so", "libgio-2.0.so.0",
+    "libgobject-2.0.so", "libgobject-2.0.so.0",
+    "libgmodule-2.0.so", "libgmodule-2.0.so.0",
+    "libgthread-2.0.so", "libgthread-2.0.so.0",
+    "libffi.so.8",
+    "libpcre2-8.so", "libpcre2-8.so.0",
+    "libz.so", "libz.so.1",
+}
+local host_fallback_sonames = {
+    "libmount.so.1",
+    "libselinux.so.1",
+    "libblkid.so.1",
+}
+local host_lib_dirs = {
+    "/usr/lib/x86_64-linux-gnu", "/lib/x86_64-linux-gnu",
+    "/usr/lib64", "/lib64", "/usr/lib", "/lib",
+}
+
+function install()
+    -- Default extraction, which this package previously got by having no
+    -- hook at all: move the unpacked tarball into place (same idiom as
+    -- compat.glfw).
+    local srcdir = pkginfo.install_file():replace(".tar.gz", "")
+    if not os.isdir(srcdir) then
+        srcdir = "EUI-NEO-" .. pkginfo.version()
+    end
+    local idir = pkginfo.install_dir()
+    os.tryrm(idir)
+    os.mv(srcdir, idir)
+
+    -- Normalize to the single wrap layer the descriptor's `*/` globs are
+    -- written against. Whether the tree arrives wrapped depends on the
+    -- fetch path: the GitHub tarball keeps its `EUI-NEO-<v>/` top level,
+    -- the CN mirror's does not — observed on one machine, one version,
+    -- one day apart. Without this, which layout a consumer compiles is a
+    -- function of their mirror, and the losing side fails with
+    -- `"core/…" file not found` on the quoted includes.
+    if os.isdir(path.join(idir, "core")) then
+        local tmp = idir .. ".wrap-tmp"
+        os.tryrm(tmp)
+        os.mv(idir, tmp)
+        os.mkdir(idir)
+        os.mv(tmp, path.join(idir, "EUI-NEO-" .. pkginfo.version()))
+    end
+
+    -- The staging dir exists on EVERY platform so the include_dirs entry
+    -- `mcpp_generated/glib/include/glib-2.0` never names a missing path;
+    -- only linux populates it. Off linux it stays an empty directory,
+    -- which as an -I is inert.
+    local gendir = path.join(pkginfo.install_dir(), "mcpp_generated", "glib")
+    local geninc = path.join(gendir, "include")
+    os.mkdir(path.join(geninc, "glib-2.0"))
+
+    if os.host() ~= "linux" then
+        return true
+    end
+
+    -- Stage glib out of the SubOS VIEW, not the xim payload dir: the view is
+    -- the stable indirection (the role /run/opengl-driver plays on NixOS —
+    -- see compat.glx-runtime's note), so a glib upgrade under us does not
+    -- strand recorded RUNPATHs on a versioned payload path.
+    local subos = system.subos_sysrootdir()
+    local subos_glib_inc = path.join(subos, "usr", "include", "glib-2.0")
+    local subos_lib = path.join(subos, "lib")
+
+    if not os.isdir(subos_glib_inc) then
+        log.error("glib-2.0 headers are not in this subos. They come from "
+                  .. "`xim:glib` (declared as a runtime dep at the xpm level); "
+                  .. "if it is declared and this still fires, the stack did "
+                  .. "not finish installing")
+        return false
+    end
+
+    os.tryrm(path.join(geninc, "glib-2.0"))
+    os.exec("ln -sf '" .. subos_glib_inc .. "' '" .. path.join(geninc, "glib-2.0") .. "'")
+
+    local genlib = path.join(gendir, "lib")
+    os.mkdir(genlib)
+    local function stage(soname, src)
+        os.exec("ln -sf '" .. src .. "' '" .. path.join(genlib, soname) .. "'")
+    end
+
+    local missing = {}
+    for _, soname in ipairs(subos_sonames) do
+        local src = path.join(subos_lib, soname)
+        if os.isfile(src) then
+            stage(soname, src)
+        else
+            table.insert(missing, soname)
+        end
+    end
+    if #missing > 0 then
+        log.error("%s is not in this subos — see the header note about "
+                  .. "xim:glib", table.concat(missing, ", "))
+        return false
+    end
+
+    -- The host-plane fallback. Prefer the subos view for these too (a future
+    -- xim provider lands there without a descriptor change); only when it
+    -- has nothing do the host dirs get searched, loudly.
+    local from_host = {}
+    for _, soname in ipairs(host_fallback_sonames) do
+        if os.isfile(path.join(subos_lib, soname)) then
+            stage(soname, path.join(subos_lib, soname))
+        else
+            local found = nil
+            for _, dir in ipairs(host_lib_dirs) do
+                local src = path.join(dir, soname)
+                if os.isfile(src) then
+                    found = src
+                    break
+                end
+            end
+            if found then
+                stage(soname, found)
+                table.insert(from_host, soname)
+            else
+                table.insert(missing, soname)
+            end
+        end
+    end
+    if #from_host > 0 then
+        log.warn("%s staged from the HOST: no xim package provides them yet "
+                 .. "(xim:glib links libmount/libselinux; util-linux and "
+                 .. "libselinux are not packaged). Built against the host's "
+                 .. "glibc, they are the mcpp#352 configuration the day that "
+                 .. "glibc overtakes the payload's", table.concat(from_host, ", "))
+    end
+    if #missing > 0 then
+        log.error("%s found neither in this subos nor on the host",
+                  table.concat(missing, ", "))
+        return false
+    end
+    return true
+end
