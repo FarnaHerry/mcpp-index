@@ -44,6 +44,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.5.1"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/std-freestanding/archive/refs/tags/0.5.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/std-freestanding/releases/download/0.5.1/std-freestanding-0.5.1.tar.gz",
+                },
+                sha256 = "56b30a09b75a23f8a1b465f2975d61a95de4b88c4bea58d3de889b094eb4ed3c",
+            },
             ["0.2.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/std-freestanding/archive/refs/tags/0.2.0.tar.gz",
@@ -88,6 +95,13 @@ package = {
             },
         },
         macosx = {
+            ["0.5.1"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/std-freestanding/archive/refs/tags/0.5.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/std-freestanding/releases/download/0.5.1/std-freestanding-0.5.1.tar.gz",
+                },
+                sha256 = "56b30a09b75a23f8a1b465f2975d61a95de4b88c4bea58d3de889b094eb4ed3c",
+            },
             ["0.2.0"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/std-freestanding/archive/refs/tags/0.2.0.tar.gz",
@@ -132,6 +146,13 @@ package = {
             },
         },
         windows = {
+            ["0.5.1"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/std-freestanding/archive/refs/tags/0.5.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/std-freestanding/releases/download/0.5.1/std-freestanding-0.5.1.tar.gz",
+                },
+                sha256 = "56b30a09b75a23f8a1b465f2975d61a95de4b88c4bea58d3de889b094eb4ed3c",
+            },
             -- ⚠️ THE ONLY PLATFORM WITH A `deps`, AND IT IS A PROPERTY OF THE
             -- TOOLCHAIN PAYLOAD RATHER THAN OF WINDOWS.
             --
