@@ -465,36 +465,11 @@ package = {
         },
 
         linux = {
-<<<<<<< HEAD
-            -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
-            -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
-            -- xim:glib (declared at the xpm→linux level) lands the libraries in
-            -- the SubOS view; the install() hook below stages them plus the
-            -- headers into mcpp_generated/glib/ so the compile and the runtime
-            -- closure both resolve inside the hermetic boundary (the same
-            -- mcpp#352 problem as GL on the host, the same staging shape as
-            -- compat.glx-runtime).
-            -- The -L is RELATIVE to the payload: mcpp resolves it against
-            -- the install dir (same convention as compat.openblas's
-            -- "-Llib"). It is load-bearing, not decorative: with only
-            -- runtime.library_dirs the staged dir reaches links as
-            -- -Wl,-rpath, which lld happens to search for -l but GNU ld
-            -- does not — on the GNU-ld toolchain -lglib then falls through
-            -- to the host's /lib64 (wrong glib, or none at all).
+            -- GLib owns and publishes its complete runtime closure in xim;
+            -- the consumer only names the public GIO link inputs.
             cflags  = { "-DEUI_TRAY_SNI=1", "-pthread" },
-            ldflags = { "-Lmcpp_generated/glib/lib",
-                        "-lpthread", "-ldl",
-                        "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
-            runtime = {
-                library_dirs = { "mcpp_generated/glib/lib" },
-            },
-=======
-            -- The SNI backend exists only in 0.5.7. Keep this platform block
-            -- version-scoped at the package boundary rather than changing all
-            -- older published EUI-NEO builds.
             ldflags = { "-lpthread", "-ldl",
                         "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
->>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
         },
     },
 }
