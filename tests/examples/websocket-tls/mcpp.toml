@@ -1,0 +1,29 @@
+# websocket-tls test project: proves compat.websocket's opt-in `tls` feature
+# makes a real certificate-validated wss:// client/server usable. The fixture
+# is entirely offline (127.0.0.1 + test-only PEM files), so CI neither reaches
+# a public WSS endpoint nor weakens IXWebSocket's normal peer/hostname checks.
+#
+# This is separate from `websocket` (strict zero-dependency ws:// client) and
+# `websocket-features` (server + zlib): mcpp resolves one feature set per
+# consuming project, so a separate member preserves those assertions.
+[package]
+name    = "websocket-tls-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.compat]
+websocket = { version = "12.0.1", features = ["tls", "server"] }
+
+[target.'cfg(linux)'.build]
+cxxflags = ["-DHAVE_WEBSOCKET_TLS=1"]
+
+[target.'cfg(macos)'.dependencies.compat]
+websocket = { version = "12.0.1", features = ["tls", "server"] }
+
+[target.'cfg(macos)'.build]
+cxxflags = ["-DHAVE_WEBSOCKET_TLS=1"]
+
+[target.'cfg(windows)'.dependencies.compat]
+websocket = { version = "12.0.1", features = ["tls", "server"] }
+
+[target.'cfg(windows)'.build]
+cxxflags = ["-DHAVE_WEBSOCKET_TLS=1"]
