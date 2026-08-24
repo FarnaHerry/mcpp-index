@@ -14,19 +14,21 @@
 -- stays clean. IXGetFreePort.cpp IS included: it is a standalone utility and
 -- part of the client-side lib.
 --
--- ZERO external dependencies, all three knobs turned off:
+-- ZERO external dependencies by default, with the optional TLS, zlib and
+-- server features below all turned off:
 --
 --   * No IXWEBSOCKET_USE_TLS — the TLS socket TUs (OpenSSL / MbedTLS /
 --     AppleSSL) are not compiled and the public headers that reach consumers
 --     never include them; IXSocketFactory.cpp only pulls the TLS headers under
---     `#ifdef IXWEBSOCKET_USE_TLS`.
+--     `#ifdef IXWEBSOCKET_USE_TLS`. The opt-in `tls` feature consistently uses
+--     OpenSSL across Linux, macOS and Windows through compat.openssl.
 --   * No IXWEBSOCKET_USE_ZLIB — IXGzipCodec.cpp and the per-message-deflate
 --     codec guard every zlib call behind that macro, so they compile to
 --     pass-through no-ops. Per-message-deflate negotiation is then inert on
 --     the wire (clients offer no compression extension), which is exactly the
 --     conservative default.
---   * No server feature — there is no compilable optional component worth
---     gating here; the server side is deliberately not offered.
+--   * No server feature — the base is a client-only library; the optional
+--     `server` feature adds the four upstream server translation units.
 --
 -- The 32 sources below transcribe upstream CMake's `IXWEBSOCKET_SOURCES` minus
 -- the four server TUs above. All names are unique within the index, so the
@@ -118,14 +120,23 @@ package = {
         targets = { ["websocket"] = { kind = "lib" } },
 
         -- ── Optional components ──────────────────────────────────────────
-        -- The base build is the zero-dependency client above; two components
+        -- The base build is the zero-dependency client above; three components
         -- can be enabled on top. mcpp features only ADD, so a consumer naming
         -- one keeps everything else:
         --
-        --   websocket = "12.0.1"                                   -> client only
+        --   websocket = "12.0.1"                                   -> ws:// client only
+        --   websocket = { …, features = ["tls"] }                   -> + wss:// via OpenSSL
         --   websocket = { …, features = ["server"] }                -> + the server (implies zlib)
         --   websocket = { …, features = ["zlib"] }                  -> + compression
-        --   websocket = { …, features = ["server", "zlib"] }        -> + both
+        --   websocket = { …, features = ["tls", "server", "zlib"] } -> all three
+        --
+        -- `tls` is deliberately independent: TLS is client transport support,
+        -- while server and compression are separately useful choices. IXSocket-
+        -- Factory.cpp is already in the base sources and switches to
+        -- SocketOpenSSL only when BOTH definitions below are set; this feature
+        -- adds the one OpenSSL backend TU upstream CMake adds for USE_OPEN_SSL.
+        -- compat.openssl is source-built/static across all declared platforms,
+        -- so the consumer never falls through to a host libssl.
         --
         -- `server` brings the four TUs the base build leaves out. It needs
         -- nothing external: every IX* header it touches is already compiled
@@ -148,6 +159,13 @@ package = {
         -- enablePerMessageDeflate() on their client (and the server enables it
         -- by default).
         features = {
+            ["tls"] = {
+                -- CMake USE_TLS + USE_OPEN_SSL: IXSocketFactory.cpp selects
+                -- SocketOpenSSL and this is its one optional source.
+                defines = { "IXWEBSOCKET_USE_TLS=1", "IXWEBSOCKET_USE_OPEN_SSL=1" },
+                sources = { "*/ixwebsocket/IXSocketOpenSSL.cpp" },
+                deps    = { ["compat.openssl"] = "3.5.1" },
+            },
             ["server"] = {
                 implies = { "zlib" },
                 sources = {
@@ -165,10 +183,11 @@ package = {
 
         -- ── Platform-specific ──────────────────────────────────────────────
         -- Upstream: Threads::Threads on UNIX, wsock32/ws2_32/shlwapi +
-        -- _CRT_SECURE_NO_WARNINGS on Windows. shlwapi is only reached from the
-        -- excluded IXSocketOpenSSL.cpp (its PathFileExists helpers), so it is
-        -- dropped here; wsock32 is kept alongside ws2_32 exactly as upstream
-        -- lists it.
+        -- _CRT_SECURE_NO_WARNINGS on Windows. `tls` compiles
+        -- IXSocketOpenSSL.cpp, which includes shlwapi's PathMatchSpecA; keep
+        -- that system import library unconditional on Windows because mcpp's
+        -- feature shape has no platform-local ldflags and it is harmless for
+        -- the default ws:// build.
         linux = {
             ldflags = { "-lpthread" },
         },
@@ -177,7 +196,7 @@ package = {
         },
         windows = {
             cxxflags = { "-D_CRT_SECURE_NO_WARNINGS" },
-            ldflags  = { "-lws2_32", "-lwsock32" },
+            ldflags  = { "-lws2_32", "-lwsock32", "-lshlwapi" },
         },
     },
 }

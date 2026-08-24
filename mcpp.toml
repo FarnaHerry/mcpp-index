@@ -90,6 +90,7 @@ members = [
     "tests/examples/uwebsockets",
     "tests/examples/wil",
     "tests/examples/websocket-features",
+    "tests/examples/websocket-tls",
     "tests/examples/tray",
     "tests/examples/xxhash",
     "tests/examples/yyjson",
