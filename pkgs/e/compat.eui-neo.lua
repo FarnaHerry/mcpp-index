@@ -27,15 +27,15 @@
 -- descriptor names is byte-identical in upstream's CORE_SOURCES.
 --
 -- 0.5.7: CORE_SOURCES is byte-identical to 0.5.6, so the lib's shape does not
--- change; the version's real moves are the linux tray default (SNI over GDBus
+-- change; the version's real moves are the linux tray backend (SNI over GDBus
 -- via glib/gio, replacing the dead GTK3+libappindicator path — tray_bridge.c
--- now speaks freedesktop SNI when EUI_TRAY_SNI is set, which `compat.tray`
--- never feeds) and SDL2-only input fixes (SDL_GetMouseFocus, pointer/button
--- mapping) plus X11 resource handling in the SDL2 window backend. None of that
--- touches the sources this descriptor compiles: `compat.tray` does not provide
--- GDBus, so the linux leg still builds the EUI_TRAY_HAS_BACKEND=0 stub exactly
--- as before, and the x11_*.cpp / tray-gio pieces are not in CORE_SOURCES.
--- The new `EUI_ENABLE_TRAY` option does not affect this package either.
+-- speaks freedesktop StatusNotifierItem when EUI_TRAY_SNI is set, which this
+-- descriptor now does on linux, wiring glib through `xim:glib` and the
+-- staging install() hook below) and SDL2-only input fixes (SDL_GetMouseFocus,
+-- pointer/button mapping) plus X11 resource handling in the SDL2 window
+-- backend. The new `EUI_ENABLE_TRAY` option does not affect this package:
+-- tray_bridge.c is in CORE_SOURCES unconditionally and the define selects
+-- which backend its body compiles to.
 --
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
 -- the GitHub tarball's `EUI-NEO-0.5.7/` wrap layer.
@@ -50,6 +50,11 @@ package = {
 
     xpm = {
         linux = {
+            -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
+            -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
+            -- GLib owns and publishes its complete runtime closure in xim:
+            -- compat.eui-neo only consumes the declared SubOS headers/libs.
+            deps = { runtime = { "xim:glib@2.80.0" } },
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
@@ -458,13 +463,44 @@ package = {
         },
 
         linux = {
-            -- No tray define on purpose. Upstream only sets
-            -- EUI_TRAY_APPINDICATOR when pkg-config finds GTK3 AND
-            -- libappindicator; this index has neither, so tray_bridge.c
-            -- compiles its EUI_TRAY_HAS_BACKEND=0 stub — which is exactly
-            -- what upstream does on a machine without those dev packages.
-            -- `-ldl` is glad's CMAKE_DL_LIBS.
-            ldflags = { "-lpthread", "-ldl" },
+            -- The SNI backend exists only in 0.5.7. Keep this platform block
+            -- version-scoped at the package boundary rather than changing all
+            -- older published EUI-NEO builds.
+            ldflags = { "-lpthread", "-ldl",
+                        "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
         },
     },
 }
+
+import("xim.libxpkg.pkginfo")
+
+function install()
+    -- The 0.5.7 GitHub archive is wrapped, while some mirrors unpack the
+    -- same tree without that top-level directory. Normalize the tree before
+    -- the descriptor's `*/` globs are evaluated. This hook is intentionally
+    -- version-gated: older EUI-NEO releases retain their original install
+    -- behavior and do not inherit the SNI-specific packaging.
+    local srcdir = pkginfo.install_file():replace(".tar.gz", "")
+    if not os.isdir(srcdir) then
+        srcdir = "EUI-NEO-" .. pkginfo.version()
+    end
+    local idir = pkginfo.install_dir()
+    os.tryrm(idir)
+    os.mv(srcdir, idir)
+
+    if pkginfo.version() ~= "0.5.7" then
+        return true
+    end
+    if os.host() ~= "linux" then
+        return true
+    end
+
+    if os.isdir(path.join(idir, "core")) then
+        local tmp = idir .. ".wrap-tmp"
+        os.tryrm(tmp)
+        os.mv(idir, tmp)
+        os.mkdir(idir)
+        os.mv(tmp, path.join(idir, "EUI-NEO-" .. pkginfo.version()))
+    end
+    return true
+end
