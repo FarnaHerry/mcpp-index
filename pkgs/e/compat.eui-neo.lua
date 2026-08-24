@@ -52,10 +52,8 @@ package = {
         linux = {
             -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
             -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
-            -- xim:glib publishes glib-2.0 / gio-2.0 / gobject-2.0 into the SubOS
-            -- view; the install() hook at the bottom of this file stages them
-            -- into the payload (headers for the compile, sonames for the link
-            -- and the runtime closure — the same mcpp#352 boundary as GL).
+            -- GLib owns and publishes its complete runtime closure in xim:
+            -- compat.eui-neo only consumes the declared SubOS headers/libs.
             deps = { runtime = { "xim:glib@2.80.0" } },
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
@@ -467,6 +465,7 @@ package = {
         },
 
         linux = {
+<<<<<<< HEAD
             -- 0.5.7: tray_bridge.c (:207) speaks freedesktop StatusNotifierItem
             -- over GDBus when EUI_TRAY_SNI is set — no GTK3, no libappindicator.
             -- xim:glib (declared at the xpm→linux level) lands the libraries in
@@ -489,11 +488,19 @@ package = {
             runtime = {
                 library_dirs = { "mcpp_generated/glib/lib" },
             },
+=======
+            -- The SNI backend exists only in 0.5.7. Keep this platform block
+            -- version-scoped at the package boundary rather than changing all
+            -- older published EUI-NEO builds.
+            ldflags = { "-lpthread", "-ldl",
+                        "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
+>>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
         },
     },
 }
 
 import("xim.libxpkg.pkginfo")
+<<<<<<< HEAD
 import("xim.libxpkg.system")
 import("xim.libxpkg.log")
 
@@ -544,6 +551,15 @@ function install()
     -- Default extraction, which this package previously got by having no
     -- hook at all: move the unpacked tarball into place (same idiom as
     -- compat.glfw).
+=======
+
+function install()
+    -- The 0.5.7 GitHub archive is wrapped, while some mirrors unpack the
+    -- same tree without that top-level directory. Normalize the tree before
+    -- the descriptor's `*/` globs are evaluated. This hook is intentionally
+    -- version-gated: older EUI-NEO releases retain their original install
+    -- behavior and do not inherit the SNI-specific packaging.
+>>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     local srcdir = pkginfo.install_file():replace(".tar.gz", "")
     if not os.isdir(srcdir) then
         srcdir = "EUI-NEO-" .. pkginfo.version()
@@ -552,6 +568,7 @@ function install()
     os.tryrm(idir)
     os.mv(srcdir, idir)
 
+<<<<<<< HEAD
     -- Normalize to the single wrap layer the descriptor's `*/` globs are
     -- written against. Whether the tree arrives wrapped depends on the
     -- fetch path: the GitHub tarball keeps its `EUI-NEO-<v>/` top level,
@@ -559,6 +576,15 @@ function install()
     -- one day apart. Without this, which layout a consumer compiles is a
     -- function of their mirror, and the losing side fails with
     -- `"core/…" file not found` on the quoted includes.
+=======
+    if pkginfo.version() ~= "0.5.7" then
+        return true
+    end
+    if os.host() ~= "linux" then
+        return true
+    end
+
+>>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     if os.isdir(path.join(idir, "core")) then
         local tmp = idir .. ".wrap-tmp"
         os.tryrm(tmp)
@@ -566,6 +592,7 @@ function install()
         os.mkdir(idir)
         os.mv(tmp, path.join(idir, "EUI-NEO-" .. pkginfo.version()))
     end
+<<<<<<< HEAD
 
     -- The staging dir exists on EVERY platform so the include_dirs entry
     -- `mcpp_generated/glib/include/glib-2.0` never names a missing path;
@@ -771,5 +798,7 @@ function install()
                   .. "the host", table.concat(missing, ", "))
         return false
     end
+=======
+>>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     return true
 end
