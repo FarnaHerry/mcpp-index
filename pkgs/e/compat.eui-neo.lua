@@ -137,9 +137,7 @@ package = {
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
         -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        -- `mcpp_generated/glib/include/glib-2.0` is the staged glib header tree
-        -- (linux SNI tray; see install()); off linux it is an empty directory.
-        include_dirs = { "*/include", "*", "mcpp_generated", "mcpp_generated/glib/include/glib-2.0" },
+        include_dirs = { "*/include", "*", "mcpp_generated" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
@@ -465,9 +463,9 @@ package = {
         },
 
         linux = {
-            -- GLib owns and publishes its complete runtime closure in xim;
-            -- the consumer only names the public GIO link inputs.
-            cflags  = { "-DEUI_TRAY_SNI=1", "-pthread" },
+            -- The SNI backend exists only in 0.5.7. Keep this platform block
+            -- version-scoped at the package boundary rather than changing all
+            -- older published EUI-NEO builds.
             ldflags = { "-lpthread", "-ldl",
                         "-lglib-2.0", "-lgio-2.0", "-lgobject-2.0" },
         },
@@ -475,58 +473,6 @@ package = {
 }
 
 import("xim.libxpkg.pkginfo")
-<<<<<<< HEAD
-import("xim.libxpkg.system")
-import("xim.libxpkg.log")
-
--- Libraries the SNI tray backend needs at runtime, COPIED into the payload
--- so the link and the runtime closure both resolve inside one directory on
--- the consumer's RPATH. Copies, not symlinks: the subos view is
--- project-local while this payload is shared across projects, and a staged
--- symlink dangles the moment the project that provided the view is not the
--- one building (observed: `gio/gio.h file not found` off a shared payload
--- pointing into a wiped project .mcpp/). The payload dir is
--- version-immutable and already on the RPATH, so copies lose nothing.
--- Two origins, in preference order:
---
---   * the glib sonames and the xim-provided transitives (libffi / pcre2 /
---     zlib — xim:glib's own deps) come from the subos view when published,
---     else straight from the xim store. The view alone is NOT enough at
---     hook time: a package already cached in the store skips the config()
---     run that publishes it, so on a fresh project view the transitives
---     can be missing even though the store holds them (observed).
---   * libmount / libselinux / libblkid have NO xim provider yet: the
---     xim:glib build links them, no xim package ships them. They are
---     staged from the HOST with a warning, the same host-plane fallback
---     compat.glx-runtime used before xim:graphics existed. The day xim
---     gains util-linux/libselinux packages this branch is dead code;
---     the day a host ships a glibc newer than the payload's, this is
---     the mcpp#352 configuration again and the warn below says so.
-local subos_sonames = {
-    "libglib-2.0.so", "libglib-2.0.so.0",
-    "libgio-2.0.so", "libgio-2.0.so.0",
-    "libgobject-2.0.so", "libgobject-2.0.so.0",
-    "libgmodule-2.0.so", "libgmodule-2.0.so.0",
-    "libgthread-2.0.so", "libgthread-2.0.so.0",
-    "libffi.so.8",
-    "libpcre2-8.so", "libpcre2-8.so.0",
-    "libz.so", "libz.so.1",
-}
-local host_fallback_sonames = {
-    "libmount.so.1",
-    "libselinux.so.1",
-    "libblkid.so.1",
-}
-local host_lib_dirs = {
-    "/usr/lib/x86_64-linux-gnu", "/lib/x86_64-linux-gnu",
-    "/usr/lib64", "/lib64", "/usr/lib", "/lib",
-}
-
-function install()
-    -- Default extraction, which this package previously got by having no
-    -- hook at all: move the unpacked tarball into place (same idiom as
-    -- compat.glfw).
-=======
 
 function install()
     -- The 0.5.7 GitHub archive is wrapped, while some mirrors unpack the
@@ -534,7 +480,6 @@ function install()
     -- the descriptor's `*/` globs are evaluated. This hook is intentionally
     -- version-gated: older EUI-NEO releases retain their original install
     -- behavior and do not inherit the SNI-specific packaging.
->>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     local srcdir = pkginfo.install_file():replace(".tar.gz", "")
     if not os.isdir(srcdir) then
         srcdir = "EUI-NEO-" .. pkginfo.version()
@@ -543,15 +488,6 @@ function install()
     os.tryrm(idir)
     os.mv(srcdir, idir)
 
-<<<<<<< HEAD
-    -- Normalize to the single wrap layer the descriptor's `*/` globs are
-    -- written against. Whether the tree arrives wrapped depends on the
-    -- fetch path: the GitHub tarball keeps its `EUI-NEO-<v>/` top level,
-    -- the CN mirror's does not — observed on one machine, one version,
-    -- one day apart. Without this, which layout a consumer compiles is a
-    -- function of their mirror, and the losing side fails with
-    -- `"core/…" file not found` on the quoted includes.
-=======
     if pkginfo.version() ~= "0.5.7" then
         return true
     end
@@ -559,7 +495,6 @@ function install()
         return true
     end
 
->>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     if os.isdir(path.join(idir, "core")) then
         local tmp = idir .. ".wrap-tmp"
         os.tryrm(tmp)
@@ -567,213 +502,5 @@ function install()
         os.mkdir(idir)
         os.mv(tmp, path.join(idir, "EUI-NEO-" .. pkginfo.version()))
     end
-<<<<<<< HEAD
-
-    -- The staging dir exists on EVERY platform so the include_dirs entry
-    -- `mcpp_generated/glib/include/glib-2.0` never names a missing path;
-    -- only linux populates it. Off linux it stays an empty directory,
-    -- which as an -I is inert.
-    local gendir = path.join(pkginfo.install_dir(), "mcpp_generated", "glib")
-    local geninc = path.join(gendir, "include")
-    os.mkdir(path.join(geninc, "glib-2.0"))
-
-    if os.host() ~= "linux" then
-        return true
-    end
-
-    -- Resolver, in tier order. The subos VIEW (project-local) is consulted
-    -- first but is NOT reliable at hook time: entries appear there only
-    -- when the providing package's config() runs, and a package already
-    -- cached in the store skips that run — observed on a wiped .mcpp/
-    -- where the view had the glib sonames but not pcre2/zlib/libffi yet.
-    -- The STORE (the xpkgs dir the payloads live in) is the stable source:
-    -- a package's files exist there from the moment it is fetched, which
-    -- for every xpm-level dep is strictly before this hook runs.
-    local subos = system.subos_sysrootdir()
-    local subos_lib = path.join(subos, "lib")
-
-    local store_roots = {}
-    local function add_root(root)
-        if root and root ~= "" and os.isdir(root) then
-            for _, r in ipairs(store_roots) do
-                if r == root then return end
-            end
-            table.insert(store_roots, root)
-        end
-    end
-    add_root(path.directory(path.directory(idir)))
-    local xlh = os.getenv("XLINGS_HOME")
-    if xlh and xlh ~= "" then
-        add_root(path.join(xlh, "data", "xpkgs"))
-    end
-
-    local from_store = {}
-    -- os.files/os.dirs are NOT in the xpm sandbox (install hook died on
-    -- exactly that); glob through the shell instead. One match per line,
-    -- no-match expands to an ls error that stderr's redirect swallows.
-    local function glob(pattern)
-        local out = {}
-        for line in os.iorun("sh -c 'ls -d " .. pattern .. " 2>/dev/null'"):gmatch("[^\n]+") do
-            table.insert(out, line)
-        end
-        return out
-    end
-    local function resolve(soname)
-        local in_view = path.join(subos_lib, soname)
-        if os.isfile(in_view) then
-            return in_view, false
-        end
-        for _, root in ipairs(store_roots) do
-            for _, hit in ipairs(glob(root .. "/*/*/lib/" .. soname)) do
-                if os.isfile(hit) then
-                    return hit, true
-                end
-            end
-        end
-        return nil, false
-    end
-
-    -- Headers, view first then the store (same race as the sonames).
-    local subos_glib_inc = path.join(subos, "usr", "include", "glib-2.0")
-    local glib_inc = nil
-    if os.isdir(subos_glib_inc) then
-        glib_inc = subos_glib_inc
-    else
-        for _, root in ipairs(store_roots) do
-            local hits = glob(root .. "/xim-x-glib/*/include/glib-2.0")
-            if #hits > 0 then
-                glib_inc = hits[1]
-                break
-            end
-        end
-    end
-    if not glib_inc then
-        log.error("glib-2.0 headers found neither in this subos nor in the "
-                  .. "xim store. They come from `xim:glib` (declared as a "
-                  .. "runtime dep at the xpm level); if it is declared and "
-                  .. "this still fires, the stack did not finish installing")
-        return false
-    end
-
-    -- COPY, not symlink. The subos view is project-local while this payload
-    -- is shared across projects: a symlink staged from the view dangles the
-    -- moment another project (or a wiped .mcpp/) is the one that builds —
-    -- observed as `gio/gio.h file not found` on a shared payload whose
-    -- staged link pointed into a deleted project view. The payload dir is
-    -- version-immutable and already on the consumer's RPATH, so copies are
-    -- also the stable indirection the glx-runtime note wants; a glib bump
-    -- simply rides the next eui-neo version.
-    os.tryrm(path.join(geninc, "glib-2.0"))
-    os.exec("cp -rL '" .. glib_inc .. "' '" .. geninc .. "'")
-
-    local genlib = path.join(gendir, "lib")
-    os.mkdir(genlib)
-    local function stage(soname, src)
-        os.exec("cp -L '" .. src .. "' '" .. path.join(genlib, soname) .. "'")
-    end
-
-    local missing = {}
-    for _, soname in ipairs(subos_sonames) do
-        local src, store_side = resolve(soname)
-        if src then
-            stage(soname, src)
-            if store_side then
-                table.insert(from_store, soname)
-            end
-        else
-            table.insert(missing, soname)
-        end
-    end
-    if #from_store > 0 then
-        log.warn("%s came from the xim store, bypassing a subos view that "
-                 .. "had not published them yet (publish lists lag payloads — "
-                 .. "libffi.so.8: openxlings/xim-pkgindex#676)",
-                 table.concat(from_store, ", "))
-    end
-    if #missing > 0 then
-        log.error("%s is in neither this subos nor the xim store — see the "
-                  .. "header note about xim:glib", table.concat(missing, ", "))
-        return false
-    end
-
-    -- The host-plane fallback. Prefer the view/store for these too (a future
-    -- xim provider lands there without a descriptor change); only when both
-    -- have nothing do the host dirs get searched, loudly.
-    local from_host = {}
-    for _, soname in ipairs(host_fallback_sonames) do
-        local src = resolve(soname)
-        if not src then
-            for _, dir in ipairs(host_lib_dirs) do
-                local cand = path.join(dir, soname)
-                if os.isfile(cand) then
-                    src = cand
-                    break
-                end
-            end
-        end
-        if src then
-            stage(soname, src)
-            local host_origin = false
-            for _, dir in ipairs(host_lib_dirs) do
-                if src:sub(1, #dir) == dir then
-                    host_origin = true
-                    break
-                end
-            end
-            if host_origin then
-                table.insert(from_host, soname)
-            end
-        else
-            table.insert(missing, soname)
-        end
-    end
-    if #from_host > 0 then
-        log.warn("%s staged from the HOST: no xim package provides them yet "
-                 .. "(xim:glib links libmount/libselinux; util-linux and "
-                 .. "libselinux are not packaged). Built against the host's "
-                 .. "glibc, they are the mcpp#352 configuration the day that "
-                 .. "glibc overtakes the payload's", table.concat(from_host, ", "))
-    end
-
-    -- Versioned-symbol coherence: a HOST libselinux references pcre2
-    -- symbols WITH version tags (PCRE2_10.xx), and a versioned reference
-    -- cannot bind to the xim pcre2's unversioned definitions — GNU ld
-    -- hard-errors at link time, lld lets it through to a runtime warning.
-    -- The reverse direction is fine (unversioned refs bind to versioned
-    -- defs), so when libselinux came from the host, pcre2 must too:
-    -- overwrite the xim-staged copy with the host's, which satisfies
-    -- both sides. Ubuntu and Fedora both ship libpcre2-8-0 by default.
-    local selinux_from_host = false
-    for _, soname in ipairs(from_host) do
-        if soname == "libselinux.so.1" then
-            selinux_from_host = true
-            break
-        end
-    end
-    if selinux_from_host then
-        local host_pcre = nil
-        for _, dir in ipairs(host_lib_dirs) do
-            local cand = path.join(dir, "libpcre2-8.so.0")
-            if os.isfile(cand) then
-                host_pcre = cand
-                break
-            end
-        end
-        if host_pcre then
-            stage("libpcre2-8.so.0", host_pcre)
-        else
-            log.warn("libselinux came from the host but libpcre2-8.so.0 did "
-                     .. "not: the xim pcre2's unversioned symbols cannot "
-                     .. "satisfy the host libselinux, and GNU ld will fail "
-                     .. "the final link")
-        end
-    end
-    if #missing > 0 then
-        log.error("%s found neither in this subos, the xim store, nor on "
-                  .. "the host", table.concat(missing, ", "))
-        return false
-    end
-=======
->>>>>>> df1713c (fix(eui-neo): remove host GLib closure reconstruction)
     return true
 end
