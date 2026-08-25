@@ -26,6 +26,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.1.3"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.3.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal-llvm-runtime/releases/download/0.1.3/openkal-llvm-runtime-0.1.3.tar.gz",
+                },
+                sha256 = "ba3cd92060af48edd6cbf787680f16b43e5dedf91014bb58e5d69fcd11b7d7a7",
+            },
             ["0.1.2"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.2.tar.gz",
@@ -49,6 +56,13 @@ package = {
             },
         },
         macosx = {
+            ["0.1.3"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.3.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal-llvm-runtime/releases/download/0.1.3/openkal-llvm-runtime-0.1.3.tar.gz",
+                },
+                sha256 = "ba3cd92060af48edd6cbf787680f16b43e5dedf91014bb58e5d69fcd11b7d7a7",
+            },
             ["0.1.2"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.2.tar.gz",
@@ -72,6 +86,13 @@ package = {
             },
         },
         windows = {
+            ["0.1.3"] = {
+                url    = {
+                    GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.3.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal-llvm-runtime/releases/download/0.1.3/openkal-llvm-runtime-0.1.3.tar.gz",
+                },
+                sha256 = "ba3cd92060af48edd6cbf787680f16b43e5dedf91014bb58e5d69fcd11b7d7a7",
+            },
             ["0.1.2"] = {
                 url    = {
                     GLOBAL = "https://github.com/mcpplibs/openkal-llvm-runtime/archive/refs/tags/0.1.2.tar.gz",
