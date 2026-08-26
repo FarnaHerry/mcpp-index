@@ -252,6 +252,13 @@ jobs:
       # visible by comparing sections against each other.
       - name: Lint platform version parity
         run: lua5.4 tests/check_platform_version_parity.lua pkgs/*/*.lua
+
+      # A published version names one set of bytes. Nothing upstream checks
+      # that a package changing its content also bumps its number, and a
+      # repeated key here is accepted by Lua and silently collapsed --- so a
+      # release that republished an old tag would leave no other trace.
+      - name: Lint duplicate versions
+        run: lua5.4 tests/check_duplicate_versions.lua pkgs/*/*.lua
       # ── Single-source-of-truth grammar check ─────────────────────────
       # `mcpp xpkg parse` uses EXACTLY the resolver's parser, so what
       # passes here is what builds for users of the pinned MCPP_VERSION.
