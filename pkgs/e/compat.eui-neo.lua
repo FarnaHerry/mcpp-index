@@ -137,7 +137,7 @@ package = {
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
         -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        include_dirs = { "*/include", "*", "mcpp_generated/include", "mcpp_generated" },
+        include_dirs = { "*/include", "*", "*/", "mcpp_generated/include", "mcpp_generated" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
@@ -467,6 +467,7 @@ package = {
         },
 
         linux = {
+            deps = { ["xim.glib"] = "2.80.0" },
             -- The SNI backend exists only in 0.5.7. Keep this platform block
             -- version-scoped at the package boundary rather than changing all
             -- older published EUI-NEO builds.
