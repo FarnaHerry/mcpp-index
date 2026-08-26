@@ -174,7 +174,7 @@ package = {
 ]==],
             ["mcpp_generated/eui_neo_platform_tu.cpp"] = [==[
 /* Uniquely named forwarding TU — see the mcpp#233 note in the descriptor. */
-#include "core/platform/platform.cpp"
+#include "../core/platform/platform.cpp"
 ]==],
         },
 
