@@ -136,8 +136,10 @@ package = {
 
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
-        -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        include_dirs = { "*/include", "*", "mcpp_generated" },
+        -- `"3rd/stb_image.h"` quoted includes resolve; `*/core` exposes the
+        -- archive-root `core/` subtree (`core/dsl.h` etc.) to consumer includes.
+        -- Upstream marks both PUBLIC.
+        include_dirs = { "*/include", "*", "*/core", "mcpp_generated" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
