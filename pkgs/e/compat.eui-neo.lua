@@ -468,21 +468,3 @@ package = {
         },
     },
 }
-
-import("xim.libxpkg.pkginfo")
-
-function install()
-    -- The 0.5.7 GitHub archive is wrapped, while some mirrors unpack the
-    -- same tree without that top-level directory. Normalize the tree before
-    -- the descriptor's `*/` globs are evaluated. This hook is intentionally
-    -- version-gated: older EUI-NEO releases retain their original install
-    -- behavior.
-    local srcdir = pkginfo.install_file():replace(".tar.gz", "")
-    if not os.isdir(srcdir) then
-        srcdir = "EUI-NEO-" .. pkginfo.version()
-    end
-    local idir = pkginfo.install_dir()
-    os.tryrm(idir)
-    os.mv(srcdir, idir)
-    return true
-end
