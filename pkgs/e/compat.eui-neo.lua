@@ -137,7 +137,7 @@ package = {
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
         -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        include_dirs = { "*/include", "*", "*/", "mcpp_generated/include", "mcpp_generated" },
+        include_dirs = { "*/include", "*", "mcpp_generated" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
@@ -171,14 +171,6 @@ package = {
 #if defined(MCPP_FEATURE_SDL2)
 #  define EUI_WINDOW_BACKEND_SDL2 1
 #endif
-]==],
-            ["mcpp_generated/include/core/platform/platform.h"] = [==[
-/* Forward the upstream quoted include through the generated include root. */
-#include "../../../../core/platform/platform.h"
-]==],
-            ["mcpp_generated/include/core/window/window_backend.h"] = [==[
-/* Keep nested quoted includes rooted at the generated include directory. */
-#include "../../../../core/window/window_backend.h"
 ]==],
             ["mcpp_generated/eui_neo_platform_tu.cpp"] = [==[
 /* Uniquely named forwarding TU — see the mcpp#233 note in the descriptor. */
@@ -471,7 +463,6 @@ package = {
         },
 
         linux = {
-            deps = { ["xim.glib"] = "2.80.0" },
             -- The SNI backend exists only in 0.5.7. Keep this platform block
             -- version-scoped at the package boundary rather than changing all
             -- older published EUI-NEO builds.
