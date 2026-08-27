@@ -176,6 +176,10 @@ package = {
 /* Keep upstream's core/... quoted include rooted at this generated include root. */
 #include "../../../../core/platform/platform.h"
 ]==],
+            ["mcpp_generated/include/core/platform/tray_bridge.h"] = [==[
+/* Keep upstream's core/... quoted include rooted at this generated include root. */
+#include "../../../../core/platform/tray_bridge.h"
+]==],
             ["mcpp_generated/include/core/window/window_backend.h"] = [==[
 /* Keep upstream's core/... quoted include rooted at this generated include root. */
 #include "../../../../core/window/window_backend.h"
