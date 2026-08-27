@@ -176,6 +176,10 @@ package = {
 /* Forward the upstream quoted include through the generated include root. */
 #include "../../../../core/platform/platform.h"
 ]==],
+            ["mcpp_generated/include/core/window/window_backend.h"] = [==[
+/* Keep nested quoted includes rooted at the generated include directory. */
+#include "../../../../core/window/window_backend.h"
+]==],
             ["mcpp_generated/eui_neo_platform_tu.cpp"] = [==[
 /* Uniquely named forwarding TU — see the mcpp#233 note in the descriptor. */
 #include "../core/platform/platform.cpp"
