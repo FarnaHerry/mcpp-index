@@ -41,30 +41,30 @@ package = {
 
     xpm = {
         linux = {
-            ["0.1.0"] = {
+            ["0.1.1"] = {
                 url    = {
-                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/0.8.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/0.8.0/openkal-0.8.0.tar.gz",
+                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/kit-0.1.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/kit-0.1.1/openkal-kit-0.1.1.tar.gz",
                 },
-                sha256 = "c0e758847847baac55763f2056881760834892252f35b2e671bff310d7dd0b34",
+                sha256 = "9c0e763179554daa5aa8dd9680351e7710a343462b068a939f475634d43802bb",
             },
         },
         macosx = {
-            ["0.1.0"] = {
+            ["0.1.1"] = {
                 url    = {
-                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/0.8.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/0.8.0/openkal-0.8.0.tar.gz",
+                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/kit-0.1.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/kit-0.1.1/openkal-kit-0.1.1.tar.gz",
                 },
-                sha256 = "c0e758847847baac55763f2056881760834892252f35b2e671bff310d7dd0b34",
+                sha256 = "9c0e763179554daa5aa8dd9680351e7710a343462b068a939f475634d43802bb",
             },
         },
         windows = {
-            ["0.1.0"] = {
+            ["0.1.1"] = {
                 url    = {
-                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/0.8.0.tar.gz",
-                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/0.8.0/openkal-0.8.0.tar.gz",
+                    GLOBAL = "https://github.com/mcpplibs/openkal/archive/refs/tags/kit-0.1.1.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/openkal/releases/download/kit-0.1.1/openkal-kit-0.1.1.tar.gz",
                 },
-                sha256 = "c0e758847847baac55763f2056881760834892252f35b2e671bff310d7dd0b34",
+                sha256 = "9c0e763179554daa5aa8dd9680351e7710a343462b068a939f475634d43802bb",
             },
         },
     },
