@@ -137,7 +137,7 @@ package = {
         -- `*/include` carries the umbrella `eui_neo.h` and `eui/*.h`; `*` is the
         -- verdir root, which is what makes the `"components/…"`, `"core/…"` and
         -- `"3rd/stb_image.h"` quoted includes resolve. Upstream marks both PUBLIC.
-        include_dirs = { "*/include", "*", "*/", "mcpp_generated/include", "mcpp_generated" },
+        include_dirs = { "*/include", "*" },
 
         -- mcpp#233/#240: every package in a link emits its objects into ONE
         -- flat obj/ dir keyed by source basename. Upstream's
@@ -172,30 +172,6 @@ package = {
 #  define EUI_WINDOW_BACKEND_SDL2 1
 #endif
 ]==],
-            ["mcpp_generated/include/core/platform/platform.h"] = [==[
-/* Keep upstream's core/... quoted include rooted at this generated include root. */
-#include "../../../../core/platform/platform.h"
-]==],
-            ["mcpp_generated/include/core/platform/tray_bridge.h"] = [==[
-/* Keep upstream's core/... quoted include rooted at this generated include root. */
-#include "../../../../core/platform/tray_bridge.h"
-]==],
-            ["mcpp_generated/include/core/window/window_backend.h"] = [==[
-/* Keep upstream's core/... quoted include rooted at this generated include root. */
-#include "../../../../core/window/window_backend.h"
-]==],
-            ["mcpp_generated/include/core/window/window_types.h"] = [==[
-/* Keep upstream's core/... quoted include rooted at this generated include root. */
-#include "../../../../core/window/window_types.h"
-]==],
-            ["mcpp_generated/include/core/platform/platform.cpp"] = [==[
-/* Include the upstream platform implementation from the generated include root. */
-#include "../../../../core/platform/platform.cpp"
-]==],
-            ["mcpp_generated/eui_neo_platform_tu.cpp"] = [==[
-/* Uniquely named forwarding TU — see the mcpp#233 note in the descriptor. */
-#include "core/platform/platform.cpp"
-]==],
         },
 
         -- CMake CORE_SOURCES + the OpenGL render backend + glfw's ime_bridge.
@@ -207,8 +183,9 @@ package = {
             "*/core/platform/native_bridge.c",
             "*/core/platform/network.cpp",
             "*/core/platform/performance_stats.cpp",
-            -- core/platform/platform.cpp enters through the generated stub above.
-            "mcpp_generated/eui_neo_platform_tu.cpp",
+            -- core/platform/platform.cpp enters as a native source below; see
+            -- the mcpp#233 note for why it cannot be named `platform.cpp`.
+            "*/core/platform/platform.cpp",
             "*/core/platform/tray_bridge.c",
             -- Render layer (backend-agnostic)
             "*/core/render/image.cpp",
@@ -507,20 +484,5 @@ function install()
     local idir = pkginfo.install_dir()
     os.tryrm(idir)
     os.mv(srcdir, idir)
-
-    if pkginfo.version() ~= "0.5.7" then
-        return true
-    end
-    if os.host() ~= "linux" then
-        return true
-    end
-
-    if os.isdir(path.join(idir, "core")) then
-        local tmp = idir .. ".wrap-tmp"
-        os.tryrm(tmp)
-        os.mv(idir, tmp)
-        os.mkdir(idir)
-        os.mv(tmp, path.join(idir, "EUI-NEO-" .. pkginfo.version()))
-    end
     return true
 end
