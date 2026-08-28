@@ -50,17 +50,54 @@ package = {
 
     xpm = {
         linux = {
+            -- What the SNI tray needs, and where each half comes from.
+            --
+            -- BUILD: `xim:glib` alone. install() copies its headers and its
+            -- own four libraries into the package, so the compile and the link
+            -- are self-contained and version-pinned.
+            --
+            -- RUNTIME: everything glib itself pulls. These are NOT staged, and
+            -- that is the point — they resolve through the subos library view
+            -- at load time, which is the indirection xlings repoints as
+            -- versions move. Measured on a consumer built this way:
+            --
+            --   libz.so.1       => xim-x-zlib/1.3.1/lib/libz.so.1
+            --   libmount.so.1   => xim-x-util-linux/2.40.2/lib/libmount.so.1
+            --   libselinux.so.1 => xim-x-libselinux/3.11/lib/libselinux.so.1
+            --   libffi.so.8     => xim-x-libffi/3.4.4/lib/libffi.so.8
+            --   libpcre2-8.so.0 => xim-x-pcre2/10.42/lib/libpcre2-8.so.0
+            --
+            -- ⚠️ NOT STAGING libz IS A DECISION, not an omission. A copy of
+            -- `libz.so.1` inside this package would be a SECOND provider of
+            -- zlib for any consumer that also builds `compat.zlib` — the
+            -- executable's merged copy then wins for all 88 symbols and glib
+            -- runs against a zlib it was not built with. mcpp reports that
+            -- (mcpp#519), and the cheapest way not to have the problem is not
+            -- to ship the duplicate.
+            --
+            -- ⚠️ NOTHING COMES FROM THE HOST. Every name above has an xim
+            -- package; an earlier draft of this change staged
+            -- libmount/libselinux/libblkid out of /usr/lib because it had not
+            -- checked.
+            --
+            -- PLATFORM level rather than inside one version entry: a
+            -- per-version `deps` does not take effect (see the note in
+            -- compat.glx-runtime, established the same way).
+            deps = {
+                "xim:glib@2.80.0",
+                runtime = {
+                    "xim:zlib", "xim:pcre2", "xim:libffi",
+                    "xim:libselinux", "xim:util-linux",
+                },
+            },
             ["0.5.3"] = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.3.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.3/eui-neo-0.5.3.tar.gz" },
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
-            -- 0.5.5 has no CN mirror (never published to mcpp-res); a plain-string
-            -- url keeps lint green and lets CN users fall back to upstream, per
-            -- docs/cn-mirror.md. Flip it to { GLOBAL, CN } if that release ever
-            -- gets mirrored — sha256 stays the same.
             ["0.5.5"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.5/eui-neo-0.5.5.tar.gz" },
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
@@ -72,7 +109,8 @@ package = {
             -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
             -- mirrored — sha256 stays the same.
             ["0.5.7"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
         },
@@ -83,7 +121,8 @@ package = {
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
             ["0.5.5"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.5/eui-neo-0.5.5.tar.gz" },
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
@@ -95,7 +134,8 @@ package = {
             -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
             -- mirrored — sha256 stays the same.
             ["0.5.7"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
         },
@@ -106,7 +146,8 @@ package = {
                 sha256 = "6951ac330d0307c633bafe720b7888bf32785103eb16973adb4ee05ef06e64d1",
             },
             ["0.5.5"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.5.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.5/eui-neo-0.5.5.tar.gz" },
                 sha256 = "cf0da91d7544fe406b704922137fd4d55ed080b3e647501e0ca5303abb00eb98",
             },
             ["0.5.6"] = {
@@ -118,7 +159,8 @@ package = {
             -- plain-string fallback as 0.5.5. Flip to { GLOBAL, CN } if it gets
             -- mirrored — sha256 stays the same.
             ["0.5.7"] = {
-                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
+                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
         },
@@ -458,13 +500,223 @@ package = {
         },
 
         linux = {
-            -- No tray define on purpose. Upstream only sets
-            -- EUI_TRAY_APPINDICATOR when pkg-config finds GTK3 AND
-            -- libappindicator; this index has neither, so tray_bridge.c
-            -- compiles its EUI_TRAY_HAS_BACKEND=0 stub — which is exactly
-            -- what upstream does on a machine without those dev packages.
+            -- ── The tray, over freedesktop StatusNotifierItem ─────────────
+            --
+            -- 0.5.7's tray_bridge.c speaks org.kde.StatusNotifierItem plus
+            -- com.canonical.dbusmenu directly over GDBus when EUI_TRAY_SNI is
+            -- set. Its whole dependency is glib/gio; the GTK3 +
+            -- libappindicator chain the old EUI_TRAY_APPINDICATOR path needs
+            -- is gone, and with it the reason this leg used to compile the
+            -- EUI_TRAY_HAS_BACKEND=0 stub.
+            --
+            -- ⚠️ THE DEFINE IS SAFE ON EVERY PUBLISHED VERSION. 0.5.6 and
+            -- earlier have no `#elif defined(EUI_TRAY_SNI)` arm at all
+            -- (verified against the 0.5.6 tarball), so the preprocessor falls
+            -- through to the same `#else` stub it always did. The `mcpp`
+            -- segment is version-independent, so this had to be checked rather
+            -- than assumed — a define that half-applies would leave
+            -- EUI_TRAY_HAS_BACKEND=1 with no implementation behind it.
+            --
+            -- ⭐ WHY THIS IS ON BY DEFAULT RATHER THAN A FEATURE, because it
+            -- is the obvious question and the answer is not "nobody asked".
+            --
+            -- It costs every Linux consumer something real, measured: 6.6 MB
+            -- staged into the package (2.9 headers + 3.7 libraries, +17% on a
+            -- 45 MB package), three more `DT_NEEDED`, five more objects in the
+            -- runtime closure — and, on mcpp 2026.8.28.2+, a "one library, two
+            -- providers" warning, because eui-neo already builds `compat.zlib`
+            -- through libpng while gio loads `libz.so.1` (mcpp#519).
+            --
+            -- Two things still settle it for default-on:
+            --
+            --   1. SYMMETRY. Windows gets EUI_TRAY_WINAPI and macOS gets
+            --      EUI_TRAY_APPKIT unconditionally, and upstream 0.5.7 made SNI
+            --      the Linux default too. Linux having no tray was the anomaly.
+            --   2. ⚠️ A FEATURE IS NOT EXPRESSIBLE. An xpkg feature carries
+            --      `sources` / `defines` / `deps` / `flags` / `implies` /
+            --      `requires` / `provides` — and NOT `ldflags` or
+            --      `include_dirs`. The define could be gated; `-Lmcpp_generated
+            --      /glib/lib -lgio-2.0 …` could not, so a consumer with the
+            --      feature off would still link glib. That is strictly worse
+            --      than default-on: the same cost, minus the tray.
+            --
+            -- Making it a real feature needs `features.<name>.ldflags` in
+            -- mcpp's xpkg parser first, and that key is itself gated on the
+            -- index floor moving. The zlib warning's own fix (a `soname` on
+            -- compat.zlib) is gated the same way.
+            --
+            -- BOTH flag lists, for the reason spelled out above the windows
+            -- leg: `cflags` reaches tray_bridge.c and nothing else.
+            cflags   = { "-DEUI_TRAY_SNI=1" },
+            cxxflags = { "-DEUI_TRAY_SNI=1" },
+            -- Where install() put glib. PRIVATE: `<gio/gio.h>` is included by
+            -- tray_bridge.c and by nothing this package publishes, so a
+            -- consumer must not inherit a glib header search path.
+            include_dirs         = { "mcpp_generated/glib/include/glib-2.0" },
+            private_include_dirs = { "mcpp_generated/glib/include/glib-2.0" },
+            -- ⚠️ THE EXPLICIT `-L` IS NOT REDUNDANT WITH `runtime.library_dirs`
+            -- BELOW. That key becomes `-Wl,-rpath` only — it tells the LOADER
+            -- where to look, not the LINKER. lld happens to search rpath and
+            -- would hide this; GNU ld does not, and `-lglib-2.0` then falls
+            -- through to whatever the host has (or to nothing).
+            --
             -- `-ldl` is glad's CMAKE_DL_LIBS.
-            ldflags = { "-lpthread", "-ldl" },
+            ldflags = { "-lpthread", "-ldl",
+                        "-Lmcpp_generated/glib/lib",
+                        "-lgio-2.0", "-lgobject-2.0", "-lglib-2.0" },
+            runtime = {
+                library_dirs = { "mcpp_generated/glib/lib" },
+            },
         },
     },
 }
+
+import("xim.libxpkg.pkginfo")
+import("xim.libxpkg.log")
+
+-- The four libraries glib itself is, plus the `.so` symlinks the LINKER needs
+-- (`-lglib-2.0` resolves `libglib-2.0.so`, while the loader looks for the
+-- SONAME `libglib-2.0.so.0`). Everything glib in turn depends on stays OUT --
+-- see the note beside `deps` above.
+local glib_libs = {
+    "libglib-2.0.so*",
+    "libgobject-2.0.so*",
+    "libgmodule-2.0.so*",
+    "libgio-2.0.so*",
+}
+
+-- ⚠️ NOTHING RESEMBLING A C RUNTIME MAY EVER JOIN THAT LIST. The consumer runs
+-- under mcpp's payload loader; a second libc reaching its RUNPATH faults inside
+-- the dynamic linker before main, printing nothing at all. The list is a safety
+-- boundary, not a convenience -- the same rule compat.glx-runtime states.
+local forbidden = {
+    "libc.so.6", "libc.so", "libm.so.6", "libpthread.so.0",
+    "libdl.so.2", "ld-linux-x86-64.so.2",
+}
+
+local function sh_quote(value)
+    return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+-- Put the source tree under EXACTLY ONE directory inside the install dir.
+--
+-- ⚠️ EVERY SOURCE GLOB IN THIS DESCRIPTOR STARTS WITH `*/`, which absorbs
+-- exactly one wrap layer. Without an install() hook xim leaves whatever the
+-- archive had, and every tarball published so far has wrapped -- so the globs
+-- work by an accident of the archive's shape rather than by anything this
+-- descriptor controls. Adding a hook means owning that.
+--
+-- ⚠️ DONE IN THE SHELL, and not for brevity: this xim's Lua sandbox has
+-- neither `os.files` nor `path.basename`, and both absences surface as
+-- `attempt to call a nil value` AFTER the entire dependency set has
+-- downloaded. `os.exec` / `os.isfile` / `os.isdir` / `os.mkdir` are what the
+-- rest of this index uses, so they are what this uses.
+local function normalise_layout(layer)
+    -- ⚠️ NO SHELL. `sh -c` does not exist on a Windows runner, and this hook
+    -- runs on every platform -- the flag that says otherwise is further down,
+    -- and it only guards the glib staging. Listing a directory is also out
+    -- (`os.files` is not in this sandbox), so the archive's shape is ASKED
+    -- ABOUT by name rather than discovered.
+    local v = pkginfo.version()
+    for _, name in ipairs({ "EUI-NEO-" .. v, "eui-neo-" .. v,
+                            "EUI-NEO-v" .. v, "eui-neo-v" .. v }) do
+        if os.isfile(path.join(name, "CMakeLists.txt")) then
+            os.mv(name, layer)
+            return os.isfile(path.join(layer, "CMakeLists.txt"))
+        end
+    end
+    -- A mirror that flattened its tarball: everything at this level IS the
+    -- tree, so give it the one layer the globs expect.
+    --
+    -- ⚠️ DEFENSIVE, NOT OBSERVED. An earlier draft of this change said the CN
+    -- mirror does not preserve the wrap layer. Checked rather than repeated:
+    -- `eui-neo-0.5.6.tar.gz` from gitcode unpacks to `EUI-NEO-0.5.6/`, byte
+    -- for byte the same archive as GitHub's (same sha256, which is what one
+    -- `sha256` field for two URLs already required). Every mirrored version
+    -- was re-downloaded and checked the same way. This branch exists so the
+    -- globs cannot depend on that continuing to hold.
+    if os.isfile("CMakeLists.txt") then
+        os.mkdir(layer)
+        os.cp("*", layer)
+        return os.isfile(path.join(layer, "CMakeLists.txt"))
+    end
+    return false
+end
+
+local function stage_glib(outdir)
+    local glib = pkginfo.build_dep("xim:glib") or pkginfo.build_dep("glib")
+    if not (glib and glib.path and os.isdir(glib.path)) then
+        log.error("eui-neo: xim:glib did not resolve. The linux tray backend "
+                  .. "speaks freedesktop SNI over GDBus and has no other "
+                  .. "source for gio")
+        return false
+    end
+
+    local incsrc = path.join(glib.path, "include", "glib-2.0")
+    if not os.isfile(path.join(incsrc, "gio", "gio.h")) then
+        log.error("eui-neo: %s has no gio/gio.h", incsrc)
+        return false
+    end
+    os.mkdir(path.join(outdir, "include"))
+    os.cp(incsrc, path.join(outdir, "include", "glib-2.0"))
+    -- glibconfig.h is a GENERATED header and lands beside the public ones in
+    -- this payload rather than under lib/glib-2.0/include/ as an autotools
+    -- build leaves it. Asserted, because a missing one fails deep inside
+    -- glib/gtypes.h with no mention of glib itself.
+    if not os.isfile(path.join(outdir, "include", "glib-2.0", "glibconfig.h")) then
+        log.error("eui-neo: glibconfig.h is not in the staged glib headers")
+        return false
+    end
+
+    local libout = path.join(outdir, "lib")
+    os.mkdir(libout)
+    -- `cp -a`, in the shell, and only here: this branch is Linux-only (see the
+    -- host guard in install()), and preserving the SYMLINKS matters. glib ships
+    -- `libgio-2.0.so -> .so.0 -> .so.0.8000.0`; dereferencing them would stage
+    -- three full copies of each library and lose the name the linker resolves.
+    for _, pattern in ipairs(glib_libs) do
+        os.exec("for lib in " .. sh_quote(path.join(glib.path, "lib")) .. "/" .. pattern ..
+                "; do [ -e \"$lib\" ] || continue; " ..
+                "cp -a \"$lib\" " .. sh_quote(libout) .. "/; done")
+    end
+
+    -- COPIES, not symlinks. A symlink into the payload is fine while the
+    -- payload is there, and the packages that learned this the hard way linked
+    -- into a PROJECT-level view instead -- but a copy is what makes the staged
+    -- tree answerable on its own, and glib's four libraries are small.
+    for _, name in ipairs({ "libgio-2.0.so.0", "libglib-2.0.so.0",
+                            "libgobject-2.0.so.0", "libgmodule-2.0.so.0" }) do
+        if not os.isfile(path.join(libout, name)) then
+            log.error("eui-neo: %s is missing from the staged glib", name)
+            return false
+        end
+    end
+    for _, bad in ipairs(forbidden) do
+        if os.isfile(path.join(libout, bad)) then
+            log.error("eui-neo: %s was staged beside glib. It would land on "
+                      .. "every consumer's RUNPATH and pair a second libc with "
+                      .. "mcpp's loader, which faults before main with no "
+                      .. "output at all", bad)
+            return false
+        end
+    end
+    return true
+end
+
+function install()
+    os.tryrm(pkginfo.install_dir())
+    os.mkdir(pkginfo.install_dir())
+
+    local layer = path.join(pkginfo.install_dir(),
+                            "eui-neo-" .. pkginfo.version())
+    if not normalise_layout(layer) then
+        log.error("eui-neo: no CMakeLists.txt under %s after unpacking; the "
+                  .. "archive layout is neither wrapped nor flat", layer)
+        return false
+    end
+
+    if os.host() ~= "linux" then
+        return true
+    end
+    return stage_glib(path.join(pkginfo.install_dir(), "mcpp_generated", "glib"))
+end
