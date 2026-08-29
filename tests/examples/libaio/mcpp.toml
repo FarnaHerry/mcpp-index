@@ -1,0 +1,16 @@
+# libaio test project: drive real kernel AIO through the wrapper.
+#
+# libaio is not a portable library with a Linux backend -- it IS the Linux AIO
+# ABI -- so the descriptor has a `linux` section and nothing else, the
+# dependency is gated, and the test compiles to a no-op main() elsewhere. Same
+# shape as tests/examples/wil in the other direction.
+#
+# Nothing here is mocked: the assertions submit iocbs to the kernel and check
+# the completion events, because a package that links but mis-declares
+# `struct iocb` would pass a "does it link" test and corrupt every submission.
+[package]
+name = "libaio-tests"
+version = "0.1.0"
+
+[target.'cfg(linux)'.dependencies.compat]
+libaio = "0.3.113"

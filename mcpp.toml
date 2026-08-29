@@ -76,6 +76,7 @@ members = [
     "tests/examples/spdlog",
     "tests/examples/freetype",
     "tests/examples/glad",
+    "tests/examples/libaio",
     "tests/examples/libpng",
     "tests/examples/libwebp",
     "tests/examples/llamacpp",

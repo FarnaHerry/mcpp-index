@@ -20,8 +20,7 @@ combined as needed.
 | **G. Host runtime adaptation** | things that cannot be vendored, such as drivers — only a symlink farm plus metadata | `pkgs/c/compat.glx-runtime.lua`, `compat.vulkan-runtime.lua` | `runtime.library_dirs` / `capabilities` |
 | **H. Host tool provider** | the upstream tarball also holds a **code generator** consumers run at build time | `pkgs/c/compat.protobuf.lua` (`protoc`) | a `targets` entry with `kind = "bin"` + `main`, plus `required_features` |
 
-For the complete sample index, see the
-[Reference examples table in the root README](../README.md#reference-examples-lua-descriptors).
+For the complete sample index, see [Descriptor examples by shape](descriptor-examples.md).
 
 Shapes A, B and C share this skeleton (the `package` header and `xpm`):
 

@@ -18,7 +18,7 @@ A–D 是四种**基础**形态,先按它们判定;E–G 是在基础形态之�
 | **G. 宿主运行时适配** | 驱动之类无法 vendor 的东西,只做符号链接农场 + 元数据 | `pkgs/c/compat.glx-runtime.lua`、`compat.vulkan-runtime.lua` | `runtime.library_dirs` / `capabilities` |
 | **H. 宿主工具提供方** | 上游 tarball 里除了库,还带着消费者在构建期要跑的**代码生成器** | `pkgs/c/compat.protobuf.lua`(`protoc`) | `targets` 里一条 `kind = "bin"` + `main`,配 `required_features` |
 
-完整的样例索引见[根 README 的「参考示例」表](../../README.zh-CN.md#参考示例lua-描述符)。
+完整的样例索引见[描述符示例总览(按形态)](descriptor-examples.md)。
 
 A、B、C 三类共用的骨架(`package` 头与 `xpm`)如下:
 
