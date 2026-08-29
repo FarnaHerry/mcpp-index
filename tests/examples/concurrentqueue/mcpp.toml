@@ -1,0 +1,18 @@
+# concurrentqueue test project: drive the C++ API of compat.concurrentqueue
+# (built from source via this repo's own index) under `mcpp test`. Part of the
+# mcpp-index self-referential workspace.
+#
+# The dependency is spelled QUALIFIED (`[dependencies.compat]`) so the request
+# resolves from THIS checkout's index rather than the published remote — the
+# one thing this member exists to test (same reasoning as tests/examples/eigen).
+#
+# What the test asserts, in descending order of "a broken package would pass
+# this anyway": real concurrent delivery (4 producers / 4 consumers, every
+# value received EXACTLY once), blocking semantics (a consumer actually blocks
+# and times out), FIFO order, bulk ops, and the move-only element path.
+[package]
+name = "concurrentqueue-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+concurrentqueue = "1.0.5"

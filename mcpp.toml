@@ -28,6 +28,8 @@ members = [
     "tests/examples/cjson",
     "tests/examples/cmdline",
     "tests/examples/cli11",
+    "tests/examples/concurrentqueue",
+    "tests/examples/concurrentqueue-c-api",
     "tests/examples/core",
     "tests/examples/curl",
     "tests/examples/eigen",

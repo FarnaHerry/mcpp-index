@@ -1,0 +1,15 @@
+# concurrentqueue C-API test project: the OTHER half of the package — the
+# `c-api` feature. The base member (tests/examples/concurrentqueue) consumes
+# the default build, which does NOT compile c_api/*.cpp; this one asks for the
+# feature in the long form and asserts the moodycamel_cq_* / moodycamel_bcq_*
+# surface actually resolves and behaves, which is what proves the gate both
+# compiles and links what it names.
+#
+# Same QUALIFIED-dependency reasoning as tests/examples/concurrentqueue: the
+# request must resolve from this checkout's index.
+[package]
+name = "concurrentqueue-c-api-tests"
+version = "0.1.0"
+
+[dependencies.compat]
+concurrentqueue = { version = "1.0.5", features = ["c-api"] }
