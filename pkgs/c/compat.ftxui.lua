@@ -10,11 +10,9 @@
 -- component,util}), so the 6.1.9 globs apply verbatim, and the public header
 -- API this index's smoke test uses (hbox/text/separator, `Dimension::Fit`,
 -- `Screen::Create(Dimensions, Dimensions)`, `Render`) is source-compatible
--- with 6.1.9. Upstream added C++20 module units (src/ftxui/*.cppm) and this
--- descriptor compiles them, so 7.0.3 consumers can `import ftxui;` — the
--- units are global-fragment includes + `using` re-exports, every declaration
--- stays attached to the global module, and `#include`/`import` can be mixed
--- in one consumer against the same compiled objects.
+-- with 6.1.9. Upstream added C++20 module units (src/ftxui/*.cppm,
+-- FTXUI_BUILD_MODULES, off by default); the `*.cpp` globs never match them,
+-- and the plain .cpp sources still compile header-only style.
 --
 -- ONE version skew the globs cannot express (no per-version build blocks,
 -- mcpp-community/mcpp#290): FTXUI 7 moved Loop's method definitions from
@@ -98,15 +96,6 @@ package = {
             "*/src/ftxui/**/*.cpp",
             "!*/src/ftxui/**/*_test.cpp",      -- gtest files (30+ in 6.1.9, 47 in 7.0.3)
             "!*/src/ftxui/**/*_fuzzer.cpp",     -- fuzz targets (16 in 6.1.9, 6 in 7.0.3)
-            -- 7.0.3's own module units: global-fragment includes + `using`
-            -- re-exports, so `import ftxui;` works and still links against
-            -- the compiled .cpp objects. 6.1.9 has no .cppm — these globs
-            -- are zero-hit warnings there, same as the redis-plus-plus union.
-            "*/src/ftxui/screen.cppm",
-            "*/src/ftxui/dom.cppm",
-            "*/src/ftxui/component.cppm",
-            "*/src/ftxui/util.cppm",
-            "*/src/ftxui/ftxui.cppm",
         },
         targets = { ["ftxui"] = { kind = "lib" } },
         deps    = { },
