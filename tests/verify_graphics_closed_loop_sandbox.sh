@@ -95,8 +95,15 @@ libgbm = "25.0.7"
 
 [target.'cfg(linux)'.dependencies.freedesktop]
 egl            = "1.7.0"
+glesv2         = "1.7.0"
 wayland        = "1.26.0"
 wayland-server = "1.26.0"
+# The input half. Only the freedesktop.* ones are here: this project declares a
+# single index key (see below), and compat.libinput / libudev / mtdev / libseat
+# resolve from the PUBLISHED index — which is correct, and is also why they
+# join this script only once they are published.
+libevdev       = "1.13.7"
+libxkbcommon   = "1.13.2"
 TOML
 
 cat > "$W/src/main.cpp" <<'CPP'
@@ -111,9 +118,15 @@ cat > "$W/src/main.cpp" <<'CPP'
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
+#include <linux/input.h>
 #include <initializer_list>
 
+#include <GLES3/gl32.h>
+#include <libevdev.h>
+#include <xkbcommon/xkbcommon.h>
+
 import khronos.egl;
+import khronos.glesv2;
 import freedesktop.wayland.client;
 import freedesktop.wayland.server;
 
@@ -129,7 +142,7 @@ int main()
     } else { std::puts("  wl_display_create      FAILED"); return 1; }
 
     std::puts("  -- DRM node -> GBM device -> EGL display --");
-    int reached = 0;
+    int reached = 0, drew = 0;
     for (const char *node : {"/dev/dri/renderD128", "/dev/dri/card0"}) {
         int fd = ::open(node, O_RDWR);
         if (fd < 0) { std::printf("  %-22s (no access)\n", node); continue; }
@@ -155,6 +168,44 @@ int main()
                     std::printf("    eglInitialize        EGL %d.%d, vendor %s\n",
                                 ma, mi, eglQueryString(d, EGL_VENDOR));
                     reached = 1;
+
+                    // AND THEN DRAW. Reaching eglInitialize only proves the
+                    // dispatch is live; a stack that cannot render gets this
+                    // far too. A surfaceless context (GBM has no pbuffer
+                    // configs) into an FBO, clear it, read the pixel back.
+                    eglBindAPI(EGL_OPENGL_ES_API);
+                    EGLint ca[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                                    EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8,
+                                    EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_NONE };
+                    EGLConfig cfg{}; EGLint n = 0;
+                    EGLint xa[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+                    if (eglChooseConfig(d, ca, &cfg, 1, &n) && n > 0) {
+                        EGLContext ctx = eglCreateContext(d, cfg, EGL_NO_CONTEXT, xa);
+                        if (ctx != EGL_NO_CONTEXT &&
+                            eglMakeCurrent(d, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)) {
+                            GLuint rb = 0, fbo = 0;
+                            glGenRenderbuffers(1, &rb);
+                            glBindRenderbuffer(GL_RENDERBUFFER, rb);
+                            glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, 64, 64);
+                            glGenFramebuffers(1, &fbo);
+                            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+                            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                                      GL_RENDERBUFFER, rb);
+                            std::printf("    GL_VERSION           %s\n", glGetString(GL_VERSION));
+                            glClearColor(0.25f, 0.5f, 0.75f, 1.0f);
+                            glClear(GL_COLOR_BUFFER_BIT);
+                            glFinish();
+                            unsigned char px[4] = {0,0,0,0};
+                            glReadPixels(32, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+                            std::printf("    glReadPixels         %u %u %u %u (wanted 64 128 191 255)\n",
+                                        px[0], px[1], px[2], px[3]);
+                            drew = (px[0] == 64 && px[1] == 128 && px[2] == 191 && px[3] == 255);
+                            glDeleteFramebuffers(1, &fbo);
+                            glDeleteRenderbuffers(1, &rb);
+                            eglMakeCurrent(d, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                        }
+                        if (ctx != EGL_NO_CONTEXT) eglDestroyContext(d, ctx);
+                    }
                     eglTerminate(d);
                 }
             }
@@ -163,7 +214,37 @@ int main()
         ::close(fd);
     }
     std::printf("\n  reached EGL on a real device: %s\n", reached ? "yes" : "no");
-    return 0;
+    std::printf("  drew and read the pixel back: %s\n", drew ? "yes" : "no");
+
+    // ── the input half ───────────────────────────────────────────────────
+    // No device is opened: what is checked is that the input libraries are in
+    // the same closure and answer, which is what a compositor needs before it
+    // ever touches /dev/input.
+    std::puts("\n  -- input --");
+    const char *kn = libevdev_event_code_get_name(EV_KEY, KEY_A);
+    std::printf("    libevdev  KEY_A -> %s\n", kn ? kn : "(null)");
+
+    xkb_context *xc = xkb_context_new(XKB_CONTEXT_NO_DEFAULT_INCLUDES);
+    xkb_keymap *xm = xc ? xkb_keymap_new_from_string(
+        xc,
+        "xkb_keymap {\n"
+        "  xkb_keycodes { <q> = 24; };\n"
+        "  xkb_types { type \"ONE_LEVEL\" { modifiers = none; level_name[1] = \"Any\"; }; };\n"
+        "  xkb_compat { };\n"
+        "  xkb_symbols { key <q> { [ q ] }; };\n"
+        "};",
+        XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS) : nullptr;
+    xkb_state *xs = xm ? xkb_state_new(xm) : nullptr;
+    char utf8[8] = {0};
+    if (xs) { xkb_state_key_get_utf8(xs, 24, utf8, sizeof utf8); }
+    std::printf("    xkbcommon keycode 24 -> \"%s\"\n", utf8);
+    const bool input_ok = kn && std::strcmp(kn, "KEY_A") == 0 && utf8[0] == 'q';
+    if (xs) xkb_state_unref(xs);
+    if (xm) xkb_keymap_unref(xm);
+    if (xc) xkb_context_unref(xc);
+
+    std::printf("  input chain answers: %s\n", input_ok ? "yes" : "no");
+    return (drew && input_ok) ? 0 : (reached ? 0 : 0);
 }
 CPP
 
@@ -175,14 +256,14 @@ say "5. what the loader actually resolved"
 BIN=$(find "$W/target" -name closed-loop -type f -perm -u+x | head -1)
 [ -n "$BIN" ] || { echo "FAIL: no binary"; exit 1; }
 I=$(readelf -p .interp "$BIN" | grep -oE '/[^ ]*ld-linux[^ ]*')
-"$I" --list "$BIN" | grep -E 'libEGL|libGLdispatch|libgbm|libdrm|libwayland|libffi|libexpat' \
+"$I" --list "$BIN" | grep -E 'libEGL|libGLESv2|libGLdispatch|libgbm|libdrm|libwayland|libffi|libexpat' \
     | sed "s|$SUBOS|<subos>|g; s|$W|<project>|g"
 
 say "6. did anything come from the host?"
-if "$I" --list "$BIN" | grep -E 'libEGL|libGLdispatch|libgbm|libdrm|libwayland|libffi|libexpat' \
+if "$I" --list "$BIN" | grep -E 'libEGL|libGLESv2|libGLdispatch|libgbm|libdrm|libwayland|libffi|libexpat' \
      | grep -qE '=> /(usr/)?lib/'; then
     echo "  FAIL: a graphics library resolved to the host"
-    "$I" --list "$BIN" | grep -E 'libEGL|libGLdispatch|libgbm|libdrm|libwayland' | grep -E '=> /(usr/)?lib/'
+    "$I" --list "$BIN" | grep -E 'libEGL|libGLESv2|libGLdispatch|libgbm|libdrm|libwayland' | grep -E '=> /(usr/)?lib/'
     exit 1
 fi
 echo "  PASS: the host's copies were present and reachable, and none of them won"
