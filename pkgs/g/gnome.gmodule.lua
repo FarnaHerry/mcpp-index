@@ -39,31 +39,34 @@
 --     #include <glib-object.h>
 --     }
 --
--- There is no module. glib's API is macro-heavy — `G_DEFINE_TYPE`,
--- `G_OBJECT`, `g_signal_connect` are all macros — and macros do not cross a
--- module boundary, so an `import` would hand a consumer the declarations and
--- withhold the half of the API that makes them usable. Compare
--- `wlroots.wlroots`, where the module is the ONLY way in because the headers
--- are not valid C++ at all: the shape follows what upstream's headers are,
--- not a house style.
+-- ❌ "THERE IS NO MODULE" USED TO BE HERE, AND IT WAS THE WRONG CONCLUSION.
+--
+-- The observation was right: glib's API IS macro-heavy, and macros do not
+-- cross a module boundary. What did not follow is that a module is therefore
+-- pointless. It hands a consumer 2,732 declarations, which is everything
+-- except the macros — and the function API is most of what gio is used for.
+--
+-- It was also the wrong shape for this index, where the NAMESPACE is the
+-- contract: `gnome.*` promises `import` the way `freedesktop.cairo` and
+-- `wlroots.wlroots` do. See the module section above.
 --
 -- ─────────────────────────────────────────────────────────────────────────
--- ⚠️ gio IS NOT IN THIS INDEX, AND THAT BLOCKS pango
+-- ❌ THE "gio IS NOT IN THIS INDEX" SECTION THAT USED TO BE HERE WAS WRONG.
 --
--- Two of gio's six generators are `gdbus-codegen`, an 8,351-line Python
--- program that turns D-Bus interface XML into GObject skeletons. Seven gio
--- sources include its output and two more reference those, so it cannot be
--- dropped without changing what gio is, and reimplementing it in
--- `build.mcpp` is not proportionate.
+-- It argued that reimplementing `gdbus-codegen` in `build.mcpp` was not
+-- proportionate, and concluded that gio must be absent. The premise held; the
+-- conclusion did not follow, because the build never needed the GENERATOR —
+-- only its OUTPUT, which is a pure function of five XML files. That output is
+-- now checked in and CI regenerates and diffs it.
 --
--- pango uses `GListModel`, which lives in gio, so the text-layout line stops
--- here. Measured and recorded rather than left as an unexplained gap.
+-- `gnome.gio` is in this index. See gnome.glib for the full note.
 --
 -- ─────────────────────────────────────────────────────────────────────────
--- ⚠️ NAME gobject AND gmodule; DO NOT NAME glib
+-- ⚠️ NAME WHAT YOU USE; DO NOT NAME glib
 --
 --     [dependencies]
 --     gnome.gobject = "2.82.5"
+--     gnome.gio     = "2.82.5"
 --     gnome.gmodule = "2.82.5"
 --     # gnome.glib arrives transitively
 --
@@ -95,6 +98,41 @@
 -- upstream tree also contains two `COPYING` symlinks, which a Windows
 -- extraction would not survive — one more reason the descriptor offers
 -- `linux` alone.
+-- ─────────────────────────────────────────────────────────────────────────
+-- ⭐ TWO WAYS TO CONSUME IT, AND YOU PICK ONE
+--
+--     import gnome.gmodule;          -- the module route
+--     #include <gmodule.h>       -- the header route
+--
+-- The namespace is the contract in this index: `compat.xxx` means headers, an
+-- owner namespace means the package exposes `import`. This module exports
+-- 20 names. It re-exports `gnome.glib`, because
+-- `gmodule.h` includes `glib.h` and because a consumer CANNOT name
+-- `gnome.glib` itself — it is a workspace path dependency.
+--
+-- ⚠️ THE TWO ROUTES DO NOT COMPOSE. A TU that imports the module AND textually
+-- includes a glib header reaches <time.h> twice — once through the module's
+-- global fragment, once directly — and the same `struct tm` from the same file
+-- becomes two entities:
+--
+--     error: conflicting declaration 'struct tm'
+--     note: previous declaration as 'struct tm'   (of module gnome.gmodule)
+--
+-- WHICH ROUTE IS DECIDED BY MACROS. A module cannot carry them, and glib's are
+-- half its API — 1,337 `#define` against 1,312 declarations for glib, 1,679
+-- against 1,753 for gio. `G_DEFINE_TYPE`, `G_OBJECT`, `g_signal_connect` and
+-- every `G_TYPE_*` are macros, so code that defines a GObject subclass takes
+-- the HEADER route. Code that uses the function API — most of gio — takes the
+-- MODULE route and includes nothing at all.
+--
+-- The wrapper is GENERATED from upstream's public headers, so a name upstream
+-- adds or removes cannot be silently missed. That is not a preference at this
+-- size: four separate silent misses were found by consumers rather than by the
+-- build — a brace inside a char literal that swallowed the rest of a file,
+-- `G_DECLARE_INTERFACE` (which expands to the names rather than spelling
+-- them), `<glibconfig.h>` being spelled without a `glib/` prefix, and glib's
+-- habit of parenthesising a name to defend it from macro expansion.
+--
 package = {
     spec        = "1",
     namespace   = "gnome",
@@ -109,15 +147,14 @@ package = {
             ["2.82.5"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpplibs/glib/archive/refs/tags/2.82.5.tar.gz",
-                    -- ⚠️ The container tag is `2.82.5-1`, not `2.82.5`. The fork's
-                    -- tag was re-cut once while this descriptor was still
-                    -- unpublished — safe only because nothing had extracted it
-                    -- yet — and gitcode refuses to REPLACE an asset of the same
-                    -- name in an existing release. Verified: this URL's sha256
-                    -- equals the GLOBAL tarball's.
-                    CN     = "https://gitcode.com/mcpp-res/glib/releases/download/2.82.5-2/glib-2.82.5.tar.gz",
+                    -- ⚠️ The container tag is `2.82.5-4`, not `2.82.5`. gitcode
+                    -- refuses to REPLACE an asset of the same name in an
+                    -- existing release, so each corrected tarball needs a new
+                    -- container tag while the PACKAGE version stays upstream's.
+                    -- Verified byte-identical to the GLOBAL tag archive.
+                    CN     = "https://gitcode.com/mcpp-res/glib/releases/download/2.82.5-4/glib-2.82.5.tar.gz",
                 },
-                sha256 = "fb65671207e5ec409a1fdb2156dafb49bf8c772ada252a17844991a14de99ea8",
+                sha256 = "38a175bcd8899f376b6540e2e3ef7450169205fc56bdb909cfb086a0438553e5",
             },
         },
     },
