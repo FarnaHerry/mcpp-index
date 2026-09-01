@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [dependencies.compat]
 gtest = { version = "1.15.2", features = ["main"] }
-ftxui = "6.1.9"
+ftxui = "7.0.3"
 lua = "5.4.7"
 mbedtls = "3.6.1"
 opengl = "2026.05.31"
