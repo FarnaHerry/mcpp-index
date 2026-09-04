@@ -124,12 +124,12 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
-            -- 0.5.8 has no CN mirror yet either (never published to mcpp-res);
-            -- same fallback as 0.5.7. Flip to a real mirror if it gets one —
-            -- sha256 stays the same.
+            -- 0.5.8 has no CN mirror yet (never published to mcpp-res), so it
+            -- is a plain-string GLOBAL url — check_mirror_urls.lua exempts
+            -- plain strings, and the maintainer flips it to { GLOBAL, CN }
+            -- when the mirror lands. sha256 stays the same.
             ["0.5.8"] = {
-                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
-                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.8/eui-neo-0.5.8.tar.gz" },
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
                 sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
             },
         },
@@ -157,10 +157,9 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
-            -- 0.5.8: see the linux block — no CN mirror yet, same fallback.
+            -- 0.5.8: see the linux block — plain-string GLOBAL, no CN mirror.
             ["0.5.8"] = {
-                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
-                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.8/eui-neo-0.5.8.tar.gz" },
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
                 sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
             },
         },
@@ -188,10 +187,9 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
-            -- 0.5.8: see the linux block — no CN mirror yet, same fallback.
+            -- 0.5.8: see the linux block — plain-string GLOBAL, no CN mirror.
             ["0.5.8"] = {
-                url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
-                           CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.8/eui-neo-0.5.8.tar.gz" },
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
                 sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
             },
         },
