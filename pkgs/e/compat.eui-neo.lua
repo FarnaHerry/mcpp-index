@@ -15,7 +15,7 @@
 -- genuinely vendored single-file headers live at its root (stb_image,
 -- nanosvg, nanosvgrast) and the sources include them as `"3rd/stb_image.h"`.
 --
--- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.7): CORE_SOURCES
+-- The build recipe below tracks upstream `CMakeLists.txt` (v0.5.8): CORE_SOURCES
 -- plus the OpenGL backend and, for the glfw window backend, `ime_bridge.c`.
 -- 0.5.5 grew a Shadertoy subsystem: render_backend.h and include/eui/types.h now
 -- include core/render/shadertoy.h unconditionally, and opengl_backend.cpp calls
@@ -37,8 +37,19 @@
 -- as before, and the x11_*.cpp / tray-gio pieces are not in CORE_SOURCES.
 -- The new `EUI_ENABLE_TRAY` option does not affect this package either.
 --
+-- 0.5.8: CORE_SOURCES gains exactly one TU — `core/render/image_stream.cpp`,
+-- the new dynamic-texture (CPU-side pixel upload, e.g. decoded video frames)
+-- surface. It is self-contained (its own header plus the STL), and the rest of
+-- the release is backend internals for it (opengl/vulkan image/upload paths,
+-- both backends' shaders), a new `EUI_APP_RUNNER` umbrella-main variant aimed
+-- at the xmake-repo packaging (off by default, irrelevant here), and an
+-- FFmpeg-based EXAMPLE behind `EUI_BUILD_FFMPEG_VIDEO_EXAMPLE` — app-level,
+-- not part of the lib. `3rd/`, the tray bridge, the window/input backends and
+-- both app-main TUs' source lists are unchanged, so deps/features/flags all
+-- carry over.
+--
 -- All `mcpp` paths are GLOBS relative to the verdir; the leading `*/` absorbs
--- the GitHub tarball's `EUI-NEO-0.5.7/` wrap layer.
+-- the GitHub tarball's `EUI-NEO-0.5.8/` wrap layer.
 package = {
     spec        = "1",
     namespace   = "compat",
@@ -113,6 +124,14 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
+            -- 0.5.8 has no CN mirror yet (never published to mcpp-res), so it
+            -- is a plain-string GLOBAL url — check_mirror_urls.lua exempts
+            -- plain strings, and the maintainer flips it to { GLOBAL, CN }
+            -- when the mirror lands. sha256 stays the same.
+            ["0.5.8"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
+                sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
+            },
         },
         macosx = {
             ["0.5.3"] = {
@@ -138,6 +157,11 @@ package = {
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
             },
+            -- 0.5.8: see the linux block — plain-string GLOBAL, no CN mirror.
+            ["0.5.8"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
+                sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
+            },
         },
         windows = {
             ["0.5.3"] = {
@@ -162,6 +186,11 @@ package = {
                 url    = { GLOBAL = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.7.tar.gz",
                            CN     = "https://gitcode.com/mcpp-res/eui-neo/releases/download/0.5.7/eui-neo-0.5.7.tar.gz" },
                 sha256 = "2d3ec0a36e34b98d13dbdaf67afa4fe178cb4b52841eb17529517cb48be43551",
+            },
+            -- 0.5.8: see the linux block — plain-string GLOBAL, no CN mirror.
+            ["0.5.8"] = {
+                url    = "https://github.com/sudoevolve/EUI-NEO/archive/refs/tags/v0.5.8.tar.gz",
+                sha256 = "004d46f34d986030b1351080b381bcc48053eb24ebbdf52602b78364f285cd38",
             },
         },
     },
@@ -229,6 +258,9 @@ package = {
             "*/core/platform/tray_bridge.c",
             -- Render layer (backend-agnostic)
             "*/core/render/image.cpp",
+            -- 0.5.8: the dynamic-texture surface (CPU-side pixel upload). Self-
+            -- contained — its own header plus the STL; no new dep.
+            "*/core/render/image_stream.cpp",
             "*/core/render/image_facade.cpp",
             "*/core/render/image_source.cpp",
             "*/core/render/primitive.cpp",
