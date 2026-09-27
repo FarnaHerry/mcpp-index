@@ -2,11 +2,18 @@
 -- each member selected by a feature.
 --
 --   [dependencies.mcpp]
---   plugins = { version = "0.15.2", features = ["rules-spirv"], host-module = true }
+--   plugins = { version = "0.16.0", features = ["rules-spirv"], host-module = true }
 --
 --   // build.mcpp
 --   import mcpp;
 --   import mcpp.rules.spirv;
+--
+-- 0.16.0 (mcpp floor 2026.9.27.1 for `rules-qt`): the Linux C++ runtime a
+-- Qt program needs is stated in the host rows `[target.x86_64-linux-gnu]` and
+-- `[target.aarch64-linux-gnu]`, which a plain `mcpp build` now applies
+-- (mcpp#704); the plugin no longer silences the missing-SDK report of a
+-- synthesised program, since mcpp synthesises none for a package with no Qt
+-- source (mcpp#715). mcpp-community/mcpp-plugins#36.
 --
 -- 0.15.2 (same mcpp floor): Qt at its upstream version, `xim:qt-base` and
 -- `xim:qt` 6.11.1 (the index keeps one key, openxlings/xim-pkgindex#891). A
@@ -601,6 +608,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.16.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.16.0/mcpp-plugins-0.16.0.tar.gz",
+                },
+                sha256 = "d54f9172bcc91d0bd3e00a0ebe5222f24fd0486945173aabe0bbca78615fe146",
+            },
             ["0.15.2"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.15.2.tar.gz",
@@ -832,9 +846,16 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.15.2" },
+            ["latest"] = { ref = "0.16.0" },
         },
         macosx = {
+            ["0.16.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.16.0/mcpp-plugins-0.16.0.tar.gz",
+                },
+                sha256 = "d54f9172bcc91d0bd3e00a0ebe5222f24fd0486945173aabe0bbca78615fe146",
+            },
             ["0.15.2"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.15.2.tar.gz",
@@ -1066,9 +1087,16 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.15.2" },
+            ["latest"] = { ref = "0.16.0" },
         },
         windows = {
+            ["0.16.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.16.0/mcpp-plugins-0.16.0.tar.gz",
+                },
+                sha256 = "d54f9172bcc91d0bd3e00a0ebe5222f24fd0486945173aabe0bbca78615fe146",
+            },
             ["0.15.2"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.15.2.tar.gz",
@@ -1300,7 +1328,7 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.15.2" },
+            ["latest"] = { ref = "0.16.0" },
         },
     },
 
