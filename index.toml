@@ -108,7 +108,14 @@
 # Moved in the pull request that moves validate.yml's pin and the openkal
 # measurement's pin to 2026.9.26.1, which run every member on every platform
 # with it. The release changes no descriptor grammar.
+# ── 2026-09-28: latest_mcpp -> 2026.9.28.1, min_mcpp unchanged ─────────────
+#
+# Moved in the pull request that moves validate.yml's pin to 2026.9.28.1,
+# which runs every member on every platform with it. The release changes no
+# descriptor grammar. An engine from this release on that a later floor
+# leaves below min_mcpp reports the floor as a closing tip of the command that
+# refreshed the index, not as an error at the start of every command.
 [index]
 spec        = "1"
 min_mcpp    = "2026.9.18.3"
-latest_mcpp = "2026.9.26.1"
+latest_mcpp = "2026.9.28.1"

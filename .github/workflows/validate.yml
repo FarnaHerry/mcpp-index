@@ -341,7 +341,23 @@ env:
   # once more after the raise.
   #
   # `index.toml` min_mcpp does not move: no descriptor grammar changed.
-  MCPP_VERSION: "2026.9.26.2"
+  # ── 2026-09-28: raised 2026.9.26.2 -> 2026.9.28.1 ─────────────────────────
+  #
+  # 2026.9.28.1 changes four things a member's build can see
+  # (mcpp-community/mcpp#717-#726): the lib root of a host-module package is
+  # ordered among its own package's units by what it imports; a workspace
+  # root with its own [package] passes its workspace tables to a member it
+  # reaches through a path dependency; two packages may deploy byte-identical
+  # files to one name; and on Windows a program built on an LLVM row uses the
+  # dynamic CRT with the toolset's redistributable placed beside it, the model
+  # the cl row already used, which is also the CRT of vcpkg's default
+  # `x64-windows` triplet and of CMake's default. No descriptor here spells a
+  # CRT flag (a hand-written one that contradicts the model is now refused),
+  # so no descriptor needs a change; the raise is the measurement of that on
+  # every member and platform.
+  #
+  # `index.toml` min_mcpp does not move: no descriptor grammar changed.
+  MCPP_VERSION: "2026.9.28.1"
 
 jobs:
   lint:
