@@ -2,11 +2,22 @@
 -- each member selected by a feature.
 --
 --   [dependencies.mcpp]
---   plugins = { version = "0.16.0", features = ["rules-spirv"], host-module = true }
+--   plugins = { version = "0.17.0", features = ["rules-spirv"], host-module = true }
 --
 --   // build.mcpp
 --   import mcpp;
 --   import mcpp.rules.spirv;
+--
+-- 0.17.0 (package floor 2026.9.28.3, `[package] mcpp`): the general library
+-- for build programs behind `plugins-core` (renamed from `surface`, kept as an
+-- alias until 2027-03-28) -- `mcpp.plugins.toolset`, `mcpp.plugins.fs` -- and
+-- the test kit `mcpp.plugins.testing` behind `plugins-testing`. deps-vcpkg and
+-- deps-cmake build with the toolset mcpp resolved: a Visual Studio instance is
+-- selected with VCPKG_VISUAL_STUDIO_PATH (the ABI hash is unchanged), a managed
+-- MSVC toolset and the clang rows are named in a derived triplet
+-- `<base>-mcpp-<hash>`, and the Linux GCC row keeps vcpkg's detection; the C
+-- runtime follows the program's contract. mcpp-community/mcpp#734,
+-- mcpp-community/mcpp-plugins#37.
 --
 -- 0.16.0 (mcpp floor 2026.9.27.1 for `rules-qt`): the Linux C++ runtime a
 -- Qt program needs is stated in the host rows `[target.x86_64-linux-gnu]` and
@@ -608,6 +619,13 @@ package = {
 
     xpm = {
         linux = {
+            ["0.17.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.17.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.17.0/mcpp-plugins-0.17.0.tar.gz",
+                },
+                sha256 = "20e9fc467c83dce33fbb706f5373eeb14eb0880c1e08e9c2c30594147875c57e",
+            },
             ["0.16.0"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
@@ -846,9 +864,16 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.16.0" },
+            ["latest"] = { ref = "0.17.0" },
         },
         macosx = {
+            ["0.17.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.17.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.17.0/mcpp-plugins-0.17.0.tar.gz",
+                },
+                sha256 = "20e9fc467c83dce33fbb706f5373eeb14eb0880c1e08e9c2c30594147875c57e",
+            },
             ["0.16.0"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
@@ -1087,9 +1112,16 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.16.0" },
+            ["latest"] = { ref = "0.17.0" },
         },
         windows = {
+            ["0.17.0"] = {
+                url = {
+                    GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.17.0.tar.gz",
+                    CN     = "https://gitcode.com/mcpp-res/mcpp-plugins/releases/download/0.17.0/mcpp-plugins-0.17.0.tar.gz",
+                },
+                sha256 = "20e9fc467c83dce33fbb706f5373eeb14eb0880c1e08e9c2c30594147875c57e",
+            },
             ["0.16.0"] = {
                 url = {
                     GLOBAL = "https://github.com/mcpp-community/mcpp-plugins/archive/refs/tags/v0.16.0.tar.gz",
@@ -1328,7 +1360,7 @@ package = {
                 },
                 sha256 = "adf1f9d6691a5d05a8a4a94e83c733ea39caee1510ce2c9af4cb23bebabea9f5",
             },
-            ["latest"] = { ref = "0.16.0" },
+            ["latest"] = { ref = "0.17.0" },
         },
     },
 

@@ -371,7 +371,13 @@ env:
   # that never match one target (linux, macos), so no descriptor's flags move.
   #
   # `index.toml` min_mcpp does not move: no descriptor grammar changed.
-  MCPP_VERSION: "2026.9.28.2"
+  #
+  # 2026.9.28.3 (mcpp-community/mcpp#734): build programs speak protocol 14,
+  # so every member's build program re-runs once; mcpp.plugins 0.17.0 states it
+  # as its floor, and tests/examples/mcpp-plugins builds against it. Engine
+  # warnings the members may newly print: W1 to W3 of SPEC-008 (the library
+  # interface), warnings only.
+  MCPP_VERSION: "2026.9.28.3"
 
 jobs:
   lint:
@@ -420,6 +426,14 @@ jobs:
             #    pinned mcpp is even downloaded, and mcpp >= 0.0.106 enforces
             #    the same rule inside `mcpp xpkg parse`.
             if ! lua5.4 tests/check_package_name.lua "$f"; then
+              fail=1
+            fi
+            # 5b. The build-plugin naming rule (mcpp#734): a namespace may not be
+            #    one of the reserved second segments of `mcpp.` (core, plugins,
+            #    deps, rules, dist, tools), which name the mcpp project's own
+            #    modules. The module names themselves are checked where members
+            #    build (tests/run_members.sh), by the engine's own warning.
+            if ! lua5.4 tests/check_reserved_namespace.lua "$f"; then
               fail=1
             fi
             # 6. c++fly admission policy (mcpp design 2026-07-14 §11-Q2, v1):

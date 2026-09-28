@@ -139,5 +139,6 @@ rm -rf "tests/examples/<member>/target" "tests/examples/<member>/.mcpp"   # 冷�
 | 声称实现了 feature 却未做负向验证 | 验证默认构建确实不含该组件 |
 | 未对齐 CI 的 mcpp 版本,本地通过而 CI 失败 | 读取 `MCPP_VERSION` 并使用同一版本 |
 | 直接推送 `main` | 切出分支并提交 PR |
+| 构建插件把模块命名为 `mcpp.rules.*`、`mcpp.plugins.*` 等保留名,或把命名空间取作 `rules`、`tools` 等 | 模块命名为 `mcpp.<自身命名空间>.*`;保留第二段属于 mcpp 项目(docs/zh/package-types.md §I),成员构建出现引擎的保留名警告即失败 |
 
 完成前应遵循 `verification-before-completion`:在声明“通过/完成”之前,须给出真实命令输出作为证据。

@@ -71,6 +71,7 @@ members = [
     "tests/examples/imgui-window",
     "tests/examples/jwt-cpp",
     "tests/examples/marzer.tomlplusplus",
+    "tests/examples/mcpp-plugins",
     "tests/examples/mio",
     "tests/examples/libmysqlclient",
     "tests/examples/mysql-connector-cpp",

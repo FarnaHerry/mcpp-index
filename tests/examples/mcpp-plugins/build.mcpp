@@ -1,0 +1,14 @@
+import std;
+import mcpp;
+import mcpp.tools.embed;
+import mcpp.plugins.fs;
+
+int main() {
+    mcpp::tools::embed::options opt;
+    opt.name_space     = "fixture";
+    opt.null_terminate = true;
+    // L2: a generated file keeps its time stamp while its content is unchanged.
+    const std::filesystem::path stamp = std::filesystem::path(mcpp::out_dir()) / "l2-probe.txt";
+    mcpp::plugins::fs::write_if_changed(stamp, "mcpp.plugins.fs\n");
+    return mcpp::tools::embed::file("data/message.txt", opt) ? 0 : 1;
+}

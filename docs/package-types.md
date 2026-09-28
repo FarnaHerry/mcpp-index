@@ -294,6 +294,38 @@ Four things to get right:
 The matching member is `tests/examples/protobuf-protoc`, and it is the complement of `tests/examples/protobuf`: that
 one deliberately uses no generated code, this one is generated code end to end.
 
+## I. Build-plugin package (`mcpp.plugins`)
+
+A build plugin is a package whose modules a consumer's `build.mcpp` imports: its
+units import `mcpp.core` (also spelled `mcpp`) and reach a consumer through a
+`[build-dependencies]` edge with `host-module = true`. Three rules admit one to
+this index (mcpp#734):
+
+- **Module names.** A plugin names its build-program modules
+  `mcpp.<namespace>.*` after its own namespace (`mcpp.acme.protobuf`). The second
+  segments `core`, `plugins`, `deps`, `rules`, `dist` and `tools` belong to the
+  mcpp project. The engine warns when another package uses them (mcpp SPEC-007
+  §9); a member whose build prints that warning fails `tests/run_members.sh`,
+  and the lint refuses a namespace spelled like one of them
+  (`tests/check_reserved_namespace.lua`). Modules the package also offers to
+  programs follow the library rule, `<namespace>.<name>.*` (mcpp SPEC-008 I3).
+- **The manifest.** The official general library is reached through the feature
+  `plugins-core`. A plugin built on it depends on `mcpp.plugins` with
+  `host-module = true` and `features = ["plugins-core"]`, and adds
+  `reexport = true` when its consumers' build programs import the library
+  themselves:
+
+  ```toml
+  [build-dependencies.mcpp]
+  plugins = { version = "0.17.0", features = ["plugins-core"], host-module = true, reexport = true }
+  ```
+- **The engine floor.** The package states the first mcpp release it needs,
+  `[package] mcpp = ">=<release>"`; an older engine stops and names the upgrade.
+  A plugin that reads the build information (the resolved tools, `mcpp::report`)
+  needs 2026.9.28.3.
+
+The matching member is `tests/examples/mcpp-plugins`.
+
 ---
 
 ## The minimal project (`tests/examples/<short>/`)

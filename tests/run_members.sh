@@ -118,10 +118,23 @@ rows=$(mktemp)
 trap 'rm -f "$rows"' EXIT
 rc=0
 
+# THE BUILD-PLUGIN NAMING RULE (mcpp#734). The engine warns when a package
+# provides a build-program module under a reserved second segment of `mcpp.`
+# (`mcpp.rules.*`, `mcpp.plugins.*`, ...) without being in namespace `mcpp`
+# (mcpp SPEC-007 §9). The index admits no such package: a member whose build
+# prints that warning fails. One rule, stated once, in the engine.
+naming_rule='which belongs to the modules maintained by the mcpp project'
+log=$(mktemp)
+trap 'rm -f "$rows" "$log"' EXIT
+
 for m in "${members[@]}"; do
     echo "::group::mcpp test -p $m"
     t0=$(date +%s)
-    if "$MCPP" test -p "$m"; then status=ok; else status=FAIL; rc=1; fi
+    if "$MCPP" test -p "$m" 2>&1 | tee "$log"; [ "${PIPESTATUS[0]}" -eq 0 ]; then status=ok; else status=FAIL; rc=1; fi
+    if grep -q "$naming_rule" "$log"; then
+        echo "::error::member $m builds a plugin whose module names a reserved segment of mcpp. (mcpp SPEC-007 §9)"
+        status=FAIL; rc=1
+    fi
     t1=$(date +%s)
     echo "::endgroup::"
     printf '%s\t%s\t%s\n' "$((t1 - t0))" "$m" "$status" >> "$rows"

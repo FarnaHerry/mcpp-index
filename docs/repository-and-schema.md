@@ -18,6 +18,7 @@ tests/examples/<member>/     one test project per library (a workspace member; <
   tests/*.cpp                behavioral assertions (standalone main; a non-zero exit code is a failure)
 tests/check_mirror_urls.lua  lint: GLOBAL+CN table completeness, and that CN points at mcpp-res
 tests/check_package_name.lua lint: identity shape (name is a single atomic segment, hierarchy belongs to namespace)
+tests/check_reserved_namespace.lua lint: a namespace is not a reserved second segment of `mcpp.` (core, plugins, deps, rules, dist, tools)
 tests/list_cn_urls.lua       extracts the CN urls for mirror-cn-reachable
 tests/run_members.sh         runs workspace members one at a time and times each. The entry point used both by CI
                              and locally; see "Running workspace members locally" below
@@ -164,7 +165,7 @@ locally with `mcpp xpkg parse pkgs/<x>/<name>.lua`.
 - `env.MCPP_VERSION` is the mcpp version every job uses; local verification should match it.
 - `lint` (always runs): lua syntax via `loadfile(f,'t')`; `spec=`/`name=`/`xpm=` must be present; leading-v versions
   are rejected; runs `check_mirror_urls.lua`; runs `check_package_name.lua` (identity shape, see "Package identity"
-  above); then runs `mcpp xpkg parse` over every descriptor with the mcpp version CI pins (strict — an unknown key
+  above); runs `check_reserved_namespace.lua` (the build-plugin naming rule, docs/package-types.md §I); then runs `mcpp xpkg parse` over every descriptor with the mcpp version CI pins (strict — an unknown key
   fails). `xpkg parse` in mcpp >= 0.0.106 enforces the identity shape itself, which makes the lua lint an earlier and
   cheaper redundant gate.
 - `mirror-cn-reachable` (always runs): `curl`s each CN url; all must return 200.
@@ -227,6 +228,7 @@ for f in pkgs/*/*.lua; do
   grep -nqE '\["v[0-9]+|\["[^"]+"\][[:space:]]*=[[:space:]]*"v[0-9]+' "$f" && { echo "LEADING-V $f"; fail=1; }
   lua5.4 tests/check_mirror_urls.lua "$f" >/dev/null 2>&1 || { echo "MIRROR $f"; fail=1; }
   lua5.4 tests/check_package_name.lua "$f" || fail=1
+  lua5.4 tests/check_reserved_namespace.lua "$f" || fail=1
 done
 [ $fail -eq 0 ] && echo "ALL LINT PASS"
 ```

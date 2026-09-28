@@ -120,7 +120,13 @@
 # Moved in the pull request that moves validate.yml's pin to 2026.9.28.2,
 # which runs every member on every platform with it. The release changes no
 # descriptor grammar.
+# ── 2026-09-28: latest_mcpp -> 2026.9.28.3, min_mcpp unchanged ─────────────
+#
+# Moved in the pull request that moves validate.yml's pin to 2026.9.28.3 and
+# registers mcpp.plugins 0.17.0, whose package floor it is. The release changes
+# no descriptor grammar; its `[package] mcpp` key is manifest vocabulary, which
+# an older engine reports as unsupported and ignores.
 [index]
 spec        = "1"
 min_mcpp    = "2026.9.18.3"
-latest_mcpp = "2026.9.28.2"
+latest_mcpp = "2026.9.28.3"

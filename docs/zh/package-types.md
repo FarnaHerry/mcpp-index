@@ -272,6 +272,30 @@ protobuf 最经典的坑——在这里**语法上无法表达**。`mcpp build -
 对应的成员是 `tests/examples/protobuf-protoc`,它与 `tests/examples/protobuf` 互为补集:那个刻意**不用**
 任何生成代码,这个从头到尾都是生成代码。
 
+## I. 构建插件包(`mcpp.plugins`)
+
+构建插件是其模块由消费方 `build.mcpp` 导入的包:它的单元导入 `mcpp.core`(也写作 `mcpp`),
+经带 `host-module = true` 的 `[build-dependencies]` 边到达消费方。进入本索引需满足三条规则
+(mcpp#734):
+
+- **模块名。** 插件以自身命名空间为其构建程序模块命名:`mcpp.<namespace>.*`(例如
+  `mcpp.acme.protobuf`)。第二段 `core`、`plugins`、`deps`、`rules`、`dist`、`tools` 属于 mcpp
+  项目。其他包使用它们时引擎给出警告(mcpp SPEC-007 §9);构建输出含该警告的成员在
+  `tests/run_members.sh` 中失败,lint 拒绝与之同名的命名空间(`tests/check_reserved_namespace.lua`)。
+  包同时提供给程序的模块遵循库的规则 `<namespace>.<name>.*`(mcpp SPEC-008 I3)。
+- **清单。** 官方通用库经 feature `plugins-core` 提供。基于它的插件以 `host-module = true` 与
+  `features = ["plugins-core"]` 依赖 `mcpp.plugins`;其消费方的构建程序也直接导入该库时,再加
+  `reexport = true`:
+
+  ```toml
+  [build-dependencies.mcpp]
+  plugins = { version = "0.17.0", features = ["plugins-core"], host-module = true, reexport = true }
+  ```
+- **引擎下限。** 包以 `[package] mcpp = ">=<release>"` 写明所需的最早 mcpp 版本;更旧的引擎停止并
+  写出升级方式。读取构建信息(解析出的工具、`mcpp::report`)的插件需要 2026.9.28.3。
+
+对应的成员是 `tests/examples/mcpp-plugins`。
+
 ---
 
 ## 最小工程(`tests/examples/<short>/`)

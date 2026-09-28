@@ -1,0 +1,16 @@
+# mcpp.plugins consumer: the official plugin package, resolved from this
+# checkout, reached from a build program. `tools-embed` needs no payload, so
+# the member runs on every platform; its build program imports L3
+# (`mcpp.tools.embed`) and L2 (`mcpp.plugins.fs`, through `plugins-core`, which
+# every member implies). The member is also the positive leg of the naming rule
+# tests/run_members.sh enforces: namespace `mcpp` provides `mcpp.tools.*` and
+# `mcpp.plugins.*` without the engine's reserved-name warning.
+[package]
+name    = "mcpp-plugins-tests"
+version = "0.1.0"
+
+[indices]
+mcpp = { path = "../../.." }
+
+[build-dependencies.mcpp]
+plugins = { version = "0.17.0", features = ["tools-embed"], host-module = true }

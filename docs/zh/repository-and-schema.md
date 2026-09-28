@@ -17,6 +17,7 @@ tests/examples/<member>/     每库测试工程(workspace 成员;<member> 为包
   tests/*.cpp                行为断言(独立 main,退出码非 0 即失败)
 tests/check_mirror_urls.lua  lint:GLOBAL+CN 表完整性,以及 CN 指向 mcpp-res
 tests/check_package_name.lua lint:身份形态(name 为单一原子段,层级归 namespace)
+tests/check_reserved_namespace.lua lint:命名空间不得是 `mcpp.` 的保留第二段(core、plugins、deps、rules、dist、tools)
 tests/list_cn_urls.lua       抽取 CN url,供 mirror-cn-reachable 使用
 tests/run_members.sh         逐个运行 workspace 成员并计时。CI 与本地共用的入口,见下文「本地运行 workspace 成员」
 tests/plan_shards.lua        依实测耗时将成员分配到各分片。由 `select` job 调用一次,`run_members.sh --shard`
@@ -125,7 +126,7 @@ mcpp 跑 `xpkg parse`(strict:未知键即失败),所以需要更新文法/键的
   条件下比较,代价是显著更慢。
 - `env.MCPP_VERSION` 为全部 job 使用的 mcpp 版本,本地验证应与之对齐。
 - `lint`(始终运行):lua 语法 `loadfile(f,'t')`;须含 `spec=`/`name=`/`xpm=`;禁止前导 v 版本;执行
-  `check_mirror_urls.lua`;执行 `check_package_name.lua`(身份形态,见上文「包身份」);再用 CI pin 的
+  `check_mirror_urls.lua`;执行 `check_package_name.lua`(身份形态,见上文「包身份」);执行 `check_reserved_namespace.lua`(构建插件命名规则,见 package-types §I);再用 CI pin 的
   mcpp 对每个描述符跑 `mcpp xpkg parse`(strict,未知键即失败)。mcpp ≥ 0.0.106 的 `xpkg parse` 自身
   也强制身份形态,lua lint 因此是更早、更便宜的冗余闸门。
 - `mirror-cn-reachable`(始终运行):逐个 `curl` CN url,均须返回 200。
@@ -179,6 +180,7 @@ for f in pkgs/*/*.lua; do
   grep -nqE '\["v[0-9]+|\["[^"]+"\][[:space:]]*=[[:space:]]*"v[0-9]+' "$f" && { echo "LEADING-V $f"; fail=1; }
   lua5.4 tests/check_mirror_urls.lua "$f" >/dev/null 2>&1 || { echo "MIRROR $f"; fail=1; }
   lua5.4 tests/check_package_name.lua "$f" || fail=1
+  lua5.4 tests/check_reserved_namespace.lua "$f" || fail=1
 done
 [ $fail -eq 0 ] && echo "ALL LINT PASS"
 ```
