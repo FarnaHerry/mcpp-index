@@ -357,7 +357,21 @@ env:
   # every member and platform.
   #
   # `index.toml` min_mcpp does not move: no descriptor grammar changed.
-  MCPP_VERSION: "2026.9.28.1"
+  # ── 2026-09-28: raised 2026.9.28.1 -> 2026.9.28.2 ─────────────────────────
+  #
+  # 2026.9.28.2 (mcpp-community/mcpp#730) changes four things a member's build
+  # can see: on Windows the files beside a program are decided by one runtime
+  # placement resolver, which places the toolset's C++ runtime over an older
+  # copy a dependency ships and states that copy once as a packaging fault; on
+  # Windows every action runs with the toolset's runtime directory first on
+  # PATH, so each action re-runs once after the raise; a GNU-dialect compile
+  # on Windows writes a depfile, so those members rebuild once; and matching
+  # conditional tables apply in order of selector specificity. The one
+  # descriptor with two `target_cfg` predicates, compat.libarchive, names two
+  # that never match one target (linux, macos), so no descriptor's flags move.
+  #
+  # `index.toml` min_mcpp does not move: no descriptor grammar changed.
+  MCPP_VERSION: "2026.9.28.2"
 
 jobs:
   lint:
@@ -463,6 +477,8 @@ jobs:
       # cases are about the rule and not about any member.
       - name: The compatibility classifier agrees with its own rules
         run: python3 tests/openkal/compat.py selftest
+      - name: The red-member rule agrees with its own cases
+        run: python3 tests/red_members.py selftest
       # ── Single-source-of-truth grammar check ─────────────────────────
       # `mcpp xpkg parse` uses EXACTLY the resolver's parser, so what
       # passes here is what builds for users of the pinned MCPP_VERSION.
@@ -1584,6 +1600,32 @@ jobs:
           path: member-timings.tsv
           retention-days: 90
 
+  # ── Every red member names its issue ────────────────────────────────────
+  # The full sweeps of 2026-09-26 failed on a member and on the CN-mirror job,
+  # and no issue recorded either. A failing member is either listed in
+  # tests/known-red.tsv with the open issue that owns it, or it fails this job;
+  # the run summary lists every failing member with its issue (task N2 of the
+  # 2026-09-28 ecosystem design). `always()`: it reads the rows the members'
+  # shards uploaded, whatever the members' job concluded.
+  red-members:
+    name: red members name their issues
+    needs: [select, workspace]
+    if: always() && needs.select.outputs.members != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: timings-*
+          path: timings
+        continue-on-error: true
+      - name: Every failing member names its issue
+        run: |
+          set -o pipefail
+          mkdir -p timings
+          python3 tests/red_members.py report timings tests/known-red.tsv \
+            --members-result "${{ needs.workspace.result }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
   # ─────────────────────────────────────────────────────────────────────────
   # A full sweep that fails must be SEEN.
   #
@@ -1602,10 +1644,10 @@ jobs:
   # already visible on the PR.
   sweep-alert:
     name: full sweep failed — open an issue
-    needs: [workspace]
+    needs: [workspace, mirror-cn-reachable, red-members]
     if: >-
       always()
-      && needs.workspace.result == 'failure'
+      && (needs.workspace.result == 'failure' || needs.mirror-cn-reachable.result == 'failure')
       && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
@@ -1614,7 +1656,14 @@ jobs:
       - name: Open or update the sweep-failure issue
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job checks nothing out, so `gh` cannot infer the repository
+          # from a work tree: on 2026-09-26 every `gh issue` call here failed
+          # with "not a git repository", and the failing sweep opened no issue.
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FAILED_JOBS: >-
+            ${{ needs.workspace.result == 'failure' && 'workspace' || '' }}
+            ${{ needs.mirror-cn-reachable.result == 'failure' && 'mirror-cn-reachable' || '' }}
         run: |
           set -euo pipefail
           TITLE="full workspace sweep is failing"
@@ -1629,7 +1678,10 @@ jobs:
             "This is the only signal that catches a published package broken by an" \
             "upstream change — selective CI cannot select a member no diff names." \
             "" \
-            "Check the \`workspace\` job's failed shards for which members regressed.")
+            "Failed jobs: $FAILED_JOBS." \
+            "" \
+            "The \`red members name their issues\` job lists each failing member with" \
+            "the issue that owns it (tests/known-red.tsv).")
           if [ -n "$NUM" ]; then
             gh issue reopen "$NUM" 2>/dev/null || true
             gh issue comment "$NUM" --body "$BODY"

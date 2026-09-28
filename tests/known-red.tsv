@@ -1,0 +1,5 @@
+# Members known to fail in the full sweep, one line each: <leg>\t<member>\t<issue>.
+# A leg is <platform>-<toolchain> (linux-default, linux-llvm, macos-default,
+# windows-default), or * for every leg. tests/red_members.py fails the sweep's
+# summary when a member fails and has no line here; a line is removed when its
+# issue is closed. See .github/workflows/validate.yml, job `red-members`.
