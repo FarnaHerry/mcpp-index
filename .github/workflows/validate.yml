@@ -397,7 +397,12 @@ env:
   # 2026.9.29.3 (mcpp-community/mcpp#740): a program a member ships through
   # `artifacts` waits for no plan-level runtime file, and its own runtime
   # files are placed beside it in the member's product directory.
-  MCPP_VERSION: "2026.9.29.3"
+  #
+  # 2026.9.29.4 (mcpp-community/mcpp#741): a program a member ships through
+  # `artifacts` links with its own closure's line, and `${mcpp.bin_dir}` in an
+  # action a member's build program declares is that member's product
+  # directory.
+  MCPP_VERSION: "2026.9.29.4"
 
 jobs:
   lint:

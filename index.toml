@@ -134,7 +134,12 @@
 # root; 2026.9.29.2 is the version the full sweep ran with, and 2026.9.29.3
 # adds the runtime placement of programs shipped through `artifacts`. None of
 # the three changes descriptor grammar.
+# ── 2026-09-29: latest_mcpp -> 2026.9.29.4, min_mcpp unchanged ─────────────
+#
+# Moved in the pull request that moves validate.yml's pin to 2026.9.29.4,
+# which runs every member on every platform with it. The release changes no
+# descriptor grammar.
 [index]
 spec        = "1"
 min_mcpp    = "2026.9.18.3"
-latest_mcpp = "2026.9.29.3"
+latest_mcpp = "2026.9.29.4"
