@@ -81,11 +81,15 @@ describe() {
 # which is the failure that would actually invalidate the comparison.
 build_and_describe() {
     ( cd "$PROJ" && "$MCPP" test ) > "$1" 2>&1 || true
-    local bin
-    bin=$(find "$PROJ/target" -type f -path '*/bin/*' -perm -u+x 2>/dev/null \
-          | head -1)
+    # mcpp 2026.9.29.1+ builds a workspace at its root: a member's programs
+    # are in `bin/<package name>/` of the workspace's build directory, and
+    # the member's own directory holds no build.
+    local pkg bin
+    pkg=$(sed -n 's/^name *= *"\(.*\)".*/\1/p' "$PROJ/mcpp.toml" | head -1)
+    bin=$(find "$ROOT/target" -type f -path "*/bin/$pkg/*" ! -name '*.so*' \
+               -perm -u+x 2>/dev/null | head -1)
     [[ -n "$bin" ]] || {
-        echo "no artifact produced under $PROJ/target:" >&2
+        echo "no artifact produced under $ROOT/target/*/*/bin/$pkg:" >&2
         tail -25 "$1" >&2; return 1; }
     describe "$bin"
 }
@@ -161,7 +165,7 @@ this check installs into.
 
   Installing the graphics stack into one home and measuring artifacts from
   another compares two unrelated things, and the comparison passes for any
-  mcpp. Clean the member's target/ (or use a checkout that has none) so the
+  mcpp. Clean the workspace's target/ (or use a checkout that has none) so the
   build actually resolves through MCPP_HOME.
 MSG
         exit 1 ;;

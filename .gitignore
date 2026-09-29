@@ -1,4 +1,10 @@
 .xlings-index-cache.json
+# The workspace's build directory, project data, compile database and lock:
+# mcpp 2026.9.29.1+ writes them at the workspace root for every member.
+/target/
+/.mcpp/
+/compile_commands.json
+/mcpp.lock
 # example project build/fetch artifacts
 tests/examples/*/target/
 tests/examples/*/.mcpp/
