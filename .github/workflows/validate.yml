@@ -412,7 +412,16 @@ env:
   # does work, the live display is drawn in one write, a path or git
   # dependency's bare key states only its short name, and the lock file keeps
   # one entry per identity.
-  MCPP_VERSION: "2026.9.30.1"
+  #
+  # 2026.9.30.2 (mcpp-community/mcpp#745): a build exits after ninja, the
+  # status row counts the work of the build, planning walks each package tree
+  # once, a vendored xlings is replaced from the newest source (#744), a
+  # module name is unique within one program rather than one build (#732),
+  # a BMI served from the global cache waits for the modules it imports that
+  # the build compiles, a selected workspace member declares as the root
+  # (mcpp-community/mcpp#747), and the clang MSVC row states its compiler
+  # version (#746).
+  MCPP_VERSION: "2026.9.30.2"
 
 jobs:
   lint:
