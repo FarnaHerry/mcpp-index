@@ -73,7 +73,9 @@ component interaction, cross-backend build stability).
     `<SDL_syswm.h>` / `<X11/Xresource.h>` it pulls resolve through the same transitive
     `compat.glfw → compat.x11` chain the GLFW leg already uses.
   - **macOS / Windows**: `__linux__` is false, so no macro can wake the block — instead a
-    `core::window` stub `sendX11MoveResizeForWindow(void*, int)` returning false. That is
+    `core::window` stub `sendX11MoveResizeForWindow(void*, int)` returning false, guarded
+    by `defined(__cplusplus)` so force-included C TUs (`tray_bridge.c`, `native_bridge.c`)
+    do not hit `unknown type name 'namespace'`. That is
     the fallback upstream's GLFW branch (:608) and its own release notes both describe
     ("on non-X11 platforms the delegation returns false and callers keep their
     programmatic fallback"). `Handle` is `void*` in the SDL2 branch (`window_types.h`),
@@ -82,7 +84,7 @@ component interaction, cross-backend build stability).
   - Both halves stay package-private; neither may become an interface define — consumers
     would inherit the lie on every platform (on macOS, SDL_syswm.h would then demand X11
     headers consumers don't have). The stub branch is additionally syntax-checked against
-    the exact call-site pattern (g++ -Wall -Wextra -Werror -fsyntax-only).
+    the exact call-site pattern in both C and C++ modes.
 - No source list, dep, feature-shape or flag changes otherwise.
 
 ## Test members
@@ -107,15 +109,15 @@ Locally, mcpp 2026.10.1.2 (same as CI `MCPP_VERSION`), Linux x86_64, `MCPP_INDEX
 - Second pass, with the shim: all seven members `mcpp test` green: eui-neo (headless),
   eui-neo-window, eui-neo-app-main, eui-neo-markdown, eui-neo-sdl2 (sdl2+network),
   eui-neo-vulkan, eui-neo-tray.
-- **PR #531 CI then failed the macOS and Windows workspace legs** — `use of undeclared
-  identifier 'sendX11MoveResizeForWindow'` at :567/:571 (both logs read; no other error
-  on either leg, the other six members pass there). Same root cause, worse shape: off
-  linux the declaration does not exist at all, so the first revision's macro shim cannot
-  help. The shim was extended with the `core::window` stub for the non-linux branch
-  (described above); the stub's call-site pattern is additionally syntax-checked with
-  g++ -Wall -Wextra -Werror -fsyntax-only, and the linux half was regression-re-run
-  (eui-neo + eui-neo-sdl2 both green again). Authoritative verification of the stub
-  branch is the PR's own macOS/Windows legs.
+- **PR #531 CI then failed the macOS and Windows workspace legs**:
+  - First CI revision: `use of undeclared identifier 'sendX11MoveResizeForWindow'`
+    at :567/:571. Same root cause, worse shape: off linux the declaration does not
+    exist at all, so the linux macro shim did not apply.
+  - Second CI revision: the `core::window` stub was introduced, but because
+    `mcpp_eui_backends.h` is force-included into all package TUs via `cflags`, C TUs
+    (`tray_bridge.c`, `native_bridge.c`) failed with `error: unknown type name 'namespace'`.
+  - Third revision: guarded the stub with `defined(__cplusplus)`, ensuring C TUs
+    bypass the C++ namespace block while C++ TUs retain the fallback declaration.
 - `compile_commands.json` (fresh, from the passing builds): the 0.6.1
   `window_backend.cpp` TU carries `compat-x-x11/1.8.13/include` via the transitive
   `compat.glfw → compat.x11` chain — `<X11/Xlib.h>` resolves with no direct dep added.
@@ -125,6 +127,6 @@ Locally, mcpp 2026.10.1.2 (same as CI `MCPP_VERSION`), Linux x86_64, `MCPP_INDEX
   effect is the failed-then-passing eui-neo-sdl2 compile across the two runs.
 
 CI status: linux legs (default + llvm×4), lint, build, select, measure, timings,
-mirror-cn-reachable and graphics-side-effects passed on the first revision; macOS and
-Windows failed on the SDL2 member only, which the extended shim (this revision)
-addresses — those two legs are its authoritative verification.
+mirror-cn-reachable and graphics-side-effects passed on earlier revisions; macOS and
+Windows failed on the SDL2 member only due to the unguarded C TU namespace in the stub,
+which the `__cplusplus` guard (this revision) resolves.

@@ -120,9 +120,10 @@
 --     produce an X11 window, so every delegation returns false); elsewhere
 --     supply the core::window stub the GLFW branch and upstream's release
 --     notes both describe ("on non-X11 platforms the delegation returns
---     false and callers keep their programmatic fallback"). It must NOT be
---     an interface define: consumers would inherit the lie on every
---     platform.
+--     false and callers keep their programmatic fallback"), guarded by
+--     `__cplusplus` so C TUs (tray_bridge.c, native_bridge.c) don't choke
+--     on `namespace`. It must NOT be an interface define: consumers would
+--     inherit the lie on every platform.
 -- The rest is header/app-level: transparent framebuffer
 -- (DslAppConfig::transparent / framebufferTransparent), beginWindowMove /
 -- beginWindowResize (the consumers of x11_moveresize.h), DslAppConfig
@@ -428,7 +429,7 @@ package = {
  * headers consumers do not have). */
 #  if defined(__linux__) && !defined(__ANDROID__)
 #    define SDL_VIDEO_DRIVER_X11 1
-#  else
+#  elif defined(__cplusplus)
 /* macOS / Windows: `__linux__` is false, so no macro can wake the guarded
  * declaration — upstream's own CI builds the SDL2 backend on Linux only and
  * never sees it (measured on both CI legs: use of undeclared identifier at
@@ -437,7 +438,9 @@ package = {
  * and callers keep their programmatic fallback" — as a core::window stub.
  * Handle is void* in the SDL2 branch (window_types.h), so the signature
  * matches exactly, and the later real definition cannot exist on this branch
- * of the #if (it is linux-only), so there is no redefinition. */
+ * of the #if (it is linux-only), so there is no redefinition. Guarded by
+ * __cplusplus because mcpp_eui_backends.h is force-included into the package's
+ * C TUs (tray_bridge.c, native_bridge.c) as well as its C++ ones. */
 namespace core::window {
 inline bool sendX11MoveResizeForWindow(void* window, int direction) {
     (void)window;
